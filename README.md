@@ -8,6 +8,7 @@
 [![Node.js Version](https://img.shields.io/badge/node-%3E%3D18.0.0-brightgreen)](https://nodejs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.9-blue)](https://www.typescriptlang.org/)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](http://makeapullrequest.com)
+![Coverage](https://img.shields.io/badge/coverage-99.31%25-brightgreen)
 
 [Features](#-features) • [Quick Start](#-quick-start) • [Usage](#-usage) • [Documentation](#-documentation) • [Contributing](#-contributing)
 
@@ -315,8 +316,11 @@ npm run dev convert export.zip
 # Build TypeScript
 npm run build
 
-# Run tests (coming soon)
+# Run tests
 npm test
+
+# Run tests with coverage
+npm run test:coverage
 ```
 
 ### Project Structure
@@ -498,7 +502,7 @@ npm start -- convert export.zip --skip-preferences
 - [ ] Conversation search and filtering
 - [ ] Web UI for easier use
 - [ ] Better image handling (Base64 embedding)
-- [ ] Automated tests
+- [x] Automated tests
 - [ ] Multi-language support
 
 ### Future Possibilities

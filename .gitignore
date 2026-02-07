@@ -7,6 +7,7 @@ temp/
 *.log
 .env
 test-output/
+coverage/
 claude-export/
 *.png
 0532b8293bb107be5c0c20f3e2980f09107f44de9a58414157f5bed3f7ef0d19*/

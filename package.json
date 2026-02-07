@@ -11,9 +11,17 @@
     "build": "tsc",
     "start": "tsx src/index.ts",
     "dev": "tsx watch src/index.ts",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage"
   },
-  "keywords": ["chatgpt", "claude", "conversation", "export", "converter", "ai"],
+  "keywords": [
+    "chatgpt",
+    "claude",
+    "conversation",
+    "export",
+    "converter",
+    "ai"
+  ],
   "author": "",
   "license": "MIT",
   "dependencies": {
@@ -25,7 +33,9 @@
   "devDependencies": {
     "@types/adm-zip": "^0.5.7",
     "@types/node": "^25.2.1",
+    "@vitest/coverage-v8": "^4.0.18",
     "tsx": "^4.21.0",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "vitest": "^4.0.18"
   }
 }
