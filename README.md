@@ -1,6 +1,6 @@
 <div align="center">
 
-# 🔄 context-swapper
+# 🔄 opencontext
 
 ### Migrate your ChatGPT conversations to Claude with AI-powered analysis
 
@@ -18,7 +18,7 @@
 
 ## 📖 Overview
 
-**context-swapper** is a CLI tool that converts ChatGPT conversation exports into Claude-compatible formats. It uses local AI (Ollama) to analyze your chat history and generate:
+**opencontext** is a CLI tool that converts ChatGPT conversation exports into Claude-compatible formats. It uses local AI (Ollama) to analyze your chat history and generate:
 
 - **🎯 Preferences** - Your communication style for Claude's settings
 - **🧠 Memory** - Factual information for Claude's memory system
@@ -96,8 +96,8 @@ When migrating from ChatGPT to Claude, you lose all context about your communica
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/context-swapper.git
-cd context-swapper
+git clone https://github.com/yourusername/opencontext.git
+cd opencontext
 
 # Install dependencies
 npm install
@@ -239,7 +239,7 @@ npm start -- convert export.zip \
 3. Click **Export data**
 4. Wait for email (usually 1-4 hours)
 5. Download the zip file
-6. Use with context-swapper
+6. Use with opencontext
 
 ### Migrating to Claude
 
@@ -304,8 +304,8 @@ graph LR
 
 ```bash
 # Clone the repo
-git clone https://github.com/yourusername/context-swapper.git
-cd context-swapper
+git clone https://github.com/yourusername/opencontext.git
+cd opencontext
 
 # Install dependencies
 npm install
@@ -413,15 +413,15 @@ We welcome contributions! Here's how to get involved:
 
 ### Ways to Contribute
 
-- 🐛 **Report bugs** - Open an [issue](https://github.com/yourusername/context-swapper/issues)
-- 💡 **Suggest features** - Start a [discussion](https://github.com/yourusername/context-swapper/discussions)
+- 🐛 **Report bugs** - Open an [issue](https://github.com/yourusername/opencontext/issues)
+- 💡 **Suggest features** - Start a [discussion](https://github.com/yourusername/opencontext/discussions)
 - 📖 **Improve docs** - Fix typos, add examples
 - 🔧 **Submit code** - Fix bugs, add features
 
 ### Development Workflow
 
 1. **Fork** the repository
-2. **Clone** your fork: `git clone https://github.com/yourusername/context-swapper.git`
+2. **Clone** your fork: `git clone https://github.com/yourusername/opencontext.git`
 3. **Create** a branch: `git checkout -b feature/amazing-feature`
 4. **Make** changes and test thoroughly
 5. **Commit** with clear message: `git commit -m 'Add amazing feature'`
@@ -513,7 +513,7 @@ npm start -- convert export.zip --skip-preferences
 - Statistics dashboard
 - Browser extension
 
-**Vote on features:** [Discussions](https://github.com/yourusername/context-swapper/discussions)
+**Vote on features:** [Discussions](https://github.com/yourusername/opencontext/discussions)
 
 ---
 
@@ -568,7 +568,7 @@ This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) 
 ```
 MIT License
 
-Copyright (c) 2026 context-swapper contributors
+Copyright (c) 2026 opencontext contributors
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -600,8 +600,8 @@ copies of the Software...
 
 ## 💬 Support & Community
 
-- 🐛 **Bug Reports**: [GitHub Issues](https://github.com/yourusername/context-swapper/issues)
-- 💡 **Feature Requests**: [GitHub Discussions](https://github.com/yourusername/context-swapper/discussions)
+- 🐛 **Bug Reports**: [GitHub Issues](https://github.com/yourusername/opencontext/issues)
+- 💡 **Feature Requests**: [GitHub Discussions](https://github.com/yourusername/opencontext/discussions)
 - ❓ **Questions**: Open an issue with `question` label
 - 📧 **Contact**: Open an issue for direct contact
 
@@ -622,6 +622,6 @@ copies of the Software...
 
 *Seamlessly migrate from ChatGPT to Claude with all your context intact*
 
-[Report Bug](https://github.com/yourusername/context-swapper/issues) • [Request Feature](https://github.com/yourusername/context-swapper/discussions) • [View Roadmap](https://github.com/yourusername/context-swapper/projects)
+[Report Bug](https://github.com/yourusername/opencontext/issues) • [Request Feature](https://github.com/yourusername/opencontext/discussions) • [View Roadmap](https://github.com/yourusername/opencontext/projects)
 
 </div>

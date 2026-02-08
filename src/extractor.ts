@@ -15,7 +15,7 @@ export class ZipExtractor {
     }
 
     // Create temporary directory
-    const tempDir = join(tmpdir(), `context-swapper-${Date.now()}`);
+    const tempDir = join(tmpdir(), `opencontext-${Date.now()}`);
     mkdirSync(tempDir, { recursive: true });
 
     try {

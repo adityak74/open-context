@@ -1,8 +1,8 @@
-# CLAUDE.md — AI Assistant Guide for context-swapper
+# CLAUDE.md — AI Assistant Guide for opencontext
 
 ## Project Overview
 
-**context-swapper** is a CLI tool that lets users take their full chat export from any AI provider (ChatGPT, Google Gemini, etc.) and convert it into a format compatible with Claude. The primary use case is onboarding to a fresh Claude account with your existing conversation history intact.
+**opencontext** is a CLI tool that lets users take their full chat export from any AI provider (ChatGPT, Google Gemini, etc.) and convert it into a format compatible with Claude. The primary use case is onboarding to a fresh Claude account with your existing conversation history intact.
 
 ### The Problem
 
@@ -10,7 +10,7 @@ When users switch to Claude, they lose all their prior conversation context from
 
 ### The Solution
 
-context-swapper reads exported conversation archives, normalizes them, and outputs Claude-compatible conversation data — so users can hit the ground running on a new Claude account with their full history.
+opencontext reads exported conversation archives, normalizes them, and outputs Claude-compatible conversation data — so users can hit the ground running on a new Claude account with their full history.
 
 ### Supported Sources (Planned)
 
@@ -35,7 +35,7 @@ This is a greenfield project being actively bootstrapped.
 ## Project Structure (Planned)
 
 ```
-context-swapper/
+opencontext/
 ├── CLAUDE.md              # This file — AI assistant guide
 ├── README.md              # User-facing documentation
 ├── package.json           # Project metadata and scripts

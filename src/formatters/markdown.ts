@@ -24,7 +24,7 @@ export class MarkdownFormatter {
 
     // Footer
     lines.push('---\n');
-    lines.push('*Exported from ChatGPT via context-swapper*');
+    lines.push('*Exported from ChatGPT via opencontext*');
 
     return lines.join('\n');
   }

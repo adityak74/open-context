@@ -16,7 +16,7 @@ import type { NormalizedConversation } from './parsers/types';
 const program = new Command();
 
 program
-  .name('context-swapper')
+  .name('opencontext')
   .description('Convert ChatGPT conversations to Claude-compatible format')
   .version('1.0.0');
 

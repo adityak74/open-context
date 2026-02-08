@@ -34,7 +34,7 @@ describe('MarkdownFormatter', () => {
       ]);
 
       const result = formatter.formatConversation(conversation);
-      expect(result).toContain('*Exported from ChatGPT via context-swapper*');
+      expect(result).toContain('*Exported from ChatGPT via opencontext*');
     });
 
     it('includes separator between metadata and messages', () => {
