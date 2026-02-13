@@ -23,8 +23,7 @@ export default function Layout() {
   return (
     <div className="flex flex-col min-h-screen bg-background">
       <header className="border-b border-border px-6 py-3 flex items-center gap-3">
-        <h1 className="text-base font-semibold tracking-tight text-foreground flex-1">opencontext</h1>
-        <span className="text-sm text-muted-foreground hidden sm:block">Portable AI preferences &amp; context</span>
+        <div className="flex-1" />
         <Button
           variant="ghost"
           size="sm"

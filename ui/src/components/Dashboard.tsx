@@ -266,6 +266,13 @@ export default function Dashboard() {
 
   return (
     <div className="flex flex-col gap-4">
+      {/* Logo hero */}
+      <div className="flex flex-col items-center gap-2 pt-2 pb-4">
+        <img src="/opencontext-logo.png" alt="opencontext" className="w-16 h-16" />
+        <h1 className="text-2xl font-semibold tracking-tight text-foreground">opencontext</h1>
+        <p className="text-sm text-muted-foreground">Portable AI preferences &amp; context</p>
+      </div>
+
       {/* Header */}
       <div className="flex justify-between items-start">
         <div>
