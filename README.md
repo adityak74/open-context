@@ -471,7 +471,7 @@ The Dashboard page in the web UI shows this setup guide with copy buttons.
 
 ## 🐳 Docker
 
-Both the Web UI and MCP Server ship with Dockerfiles for containerized deployment.
+Both the Web UI and MCP Server ship with Dockerfiles for containerized deployment. Both images are based on **node:25-slim**.
 
 ### Web UI
 
