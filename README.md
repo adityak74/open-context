@@ -676,6 +676,7 @@ npm start -- convert export.zip --skip-preferences
 - [x] MCP server for persistent context
 - [x] Export to Claude, ChatGPT, and Gemini formats
 - [x] Automated tests
+- [x] Docker support (Web UI + MCP server)
 
 ### Future Possibilities
 
