@@ -23,7 +23,8 @@ export default function Layout() {
   return (
     <div className="flex flex-col min-h-screen bg-background">
       <header className="border-b border-border px-6 py-3 flex items-center gap-3">
-        <div className="flex-1" />
+        <img src="/opencontext-logo.png" alt="opencontext" className="w-6 h-6 rounded-sm" />
+        <span className="text-sm font-semibold tracking-tight text-foreground flex-1">opencontext</span>
         <Button
           variant="ghost"
           size="sm"
@@ -37,10 +38,6 @@ export default function Layout() {
 
       <div className="flex flex-1">
         <nav className="w-48 min-w-48 border-r border-border px-2 py-3 flex flex-col gap-1">
-          <div className="flex items-center gap-2 px-3 py-2 mb-1">
-            <img src="/opencontext-logo.png" alt="opencontext" className="w-6 h-6 rounded-sm" />
-            <span className="text-sm font-semibold tracking-tight text-foreground">opencontext</span>
-          </div>
           {navItems.map(({ to, icon: Icon, label }) => (
             <NavLink
               key={to}
