@@ -102,7 +102,7 @@ When migrating from ChatGPT to Claude, you lose all context about your communica
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/opencontext.git
+git clone https://github.com/adityak74/opencontext.git
 cd opencontext
 
 # Install CLI/MCP dependencies
@@ -324,7 +324,7 @@ graph LR
 
 ```bash
 # Clone the repo
-git clone https://github.com/yourusername/opencontext.git
+git clone https://github.com/adityak74/opencontext.git
 cd opencontext
 
 # Install dependencies
@@ -508,15 +508,15 @@ We welcome contributions! Here's how to get involved:
 
 ### Ways to Contribute
 
-- 🐛 **Report bugs** - Open an [issue](https://github.com/yourusername/opencontext/issues)
-- 💡 **Suggest features** - Start a [discussion](https://github.com/yourusername/opencontext/discussions)
+- 🐛 **Report bugs** - Open an [issue](https://github.com/adityak74/opencontext/issues)
+- 💡 **Suggest features** - Start a [discussion](https://github.com/adityak74/opencontext/discussions)
 - 📖 **Improve docs** - Fix typos, add examples
 - 🔧 **Submit code** - Fix bugs, add features
 
 ### Development Workflow
 
 1. **Fork** the repository
-2. **Clone** your fork: `git clone https://github.com/yourusername/opencontext.git`
+2. **Clone** your fork: `git clone https://github.com/adityak74/opencontext.git`
 3. **Create** a branch: `git checkout -b feature/amazing-feature`
 4. **Make** changes and test thoroughly
 5. **Commit** with clear message: `git commit -m 'Add amazing feature'`
@@ -609,7 +609,7 @@ npm start -- convert export.zip --skip-preferences
 - Custom prompt templates
 - Browser extension
 
-**Vote on features:** [Discussions](https://github.com/yourusername/opencontext/discussions)
+**Vote on features:** [Discussions](https://github.com/adityak74/opencontext/discussions)
 
 ---
 
@@ -696,8 +696,8 @@ copies of the Software...
 
 ## 💬 Support & Community
 
-- 🐛 **Bug Reports**: [GitHub Issues](https://github.com/yourusername/opencontext/issues)
-- 💡 **Feature Requests**: [GitHub Discussions](https://github.com/yourusername/opencontext/discussions)
+- 🐛 **Bug Reports**: [GitHub Issues](https://github.com/adityak74/opencontext/issues)
+- 💡 **Feature Requests**: [GitHub Discussions](https://github.com/adityak74/opencontext/discussions)
 - ❓ **Questions**: Open an issue with `question` label
 - 📧 **Contact**: Open an issue for direct contact
 
@@ -718,6 +718,6 @@ copies of the Software...
 
 *Seamlessly migrate from ChatGPT to Claude with all your context intact*
 
-[Report Bug](https://github.com/yourusername/opencontext/issues) • [Request Feature](https://github.com/yourusername/opencontext/discussions) • [View Roadmap](https://github.com/yourusername/opencontext/projects)
+[Report Bug](https://github.com/adityak74/opencontext/issues) • [Request Feature](https://github.com/adityak74/opencontext/discussions) • [View Roadmap](https://github.com/adityak74/opencontext/projects)
 
 </div>
