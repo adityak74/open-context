@@ -5,12 +5,14 @@
   "main": "dist/index.js",
   "type": "module",
   "bin": {
-    "opencontext": "./dist/index.js"
+    "opencontext": "./dist/index.js",
+    "opencontext-mcp": "./dist/mcp/index.js"
   },
   "scripts": {
     "build": "tsc",
     "start": "tsx src/index.ts",
     "dev": "tsx watch src/index.ts",
+    "mcp:server": "tsx src/mcp/index.ts",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage"
   },
@@ -20,15 +22,19 @@
     "conversation",
     "export",
     "converter",
-    "ai"
+    "ai",
+    "mcp",
+    "model-context-protocol"
   ],
   "author": "",
   "license": "MIT",
   "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.26.0",
     "adm-zip": "^0.5.16",
     "chalk": "^5.6.2",
     "commander": "^13.1.0",
-    "ollama": "^0.6.3"
+    "ollama": "^0.6.3",
+    "zod": "^4.3.6"
   },
   "devDependencies": {
     "@types/adm-zip": "^0.5.7",
