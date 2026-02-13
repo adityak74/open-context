@@ -9,7 +9,7 @@
 ### Migrate your ChatGPT conversations to Claude with AI-powered analysis
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Node.js Version](https://img.shields.io/badge/node-%3E%3D20.0.0-brightgreen)](https://nodejs.org/)
+[![Node.js Version](https://img.shields.io/badge/node-%3E%3D25.0.0-brightgreen)](https://nodejs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.9-blue)](https://www.typescriptlang.org/)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](http://makeapullrequest.com)
 [![Docker](https://img.shields.io/badge/Docker-ready-2496ED?logo=docker&logoColor=white)](https://www.docker.com/)
@@ -97,7 +97,7 @@ When migrating from ChatGPT to Claude, you lose all context about your communica
 
 ### Prerequisites
 
-- **Node.js 20+** - [Download](https://nodejs.org/)
+- **Node.js 25+** - [Download](https://nodejs.org/)
 - **ChatGPT Export** - [How to export](#-getting-your-chatgpt-export)
 - **Ollama** (optional) - [Install](https://ollama.ai/) for AI analysis
 

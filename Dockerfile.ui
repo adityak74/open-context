@@ -1,5 +1,5 @@
 # Stage 1: Build the UI
-FROM node:20-slim AS builder
+FROM node:25-slim AS builder
 
 WORKDIR /app
 
@@ -10,7 +10,7 @@ COPY ui/ ./
 RUN npm run build
 
 # Stage 2: Serve with a lightweight static server
-FROM node:20-slim
+FROM node:25-slim
 
 WORKDIR /app
 

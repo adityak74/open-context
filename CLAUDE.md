@@ -88,7 +88,7 @@ opencontext/
 ## Tech Stack
 
 ### CLI / MCP Server (`src/`)
-- **Runtime**: Node.js 20+ / TypeScript 5.9
+- **Runtime**: Node.js 25+ / TypeScript 5.9
 - **CLI framework**: Commander.js
 - **MCP**: `@modelcontextprotocol/sdk`
 - **AI analysis**: Ollama (local LLM, optional)
@@ -97,7 +97,7 @@ opencontext/
 
 ### Web UI (`ui/`)
 - **Framework**: React 19 with TypeScript
-- **Build tool**: Vite 7 (requires Node 20+)
+- **Build tool**: Vite 7 (requires Node 25+)
 - **Routing**: React Router DOM 7
 - **Icons**: Lucide React
 - **Styling**: Tailwind CSS v4 + shadcn/ui (new-york style, zinc base, pitch black theme)
@@ -225,7 +225,7 @@ npm run build         # Build for production use
 cd ui
 npm install
 npm run dev           # Start Vite dev server
-npm run build         # Production build (requires Node 20+)
+npm run build         # Production build (requires Node 25+)
 npm run lint          # ESLint check
 ```
 
