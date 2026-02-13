@@ -1,0 +1,17 @@
+node_modules/
+dist/
+ui/node_modules/
+ui/dist/
+coverage/
+test-output/
+claude-export/
+output/
+temp/
+*.zip
+*.log
+*.png
+!docs/*.png
+.DS_Store
+.env
+.git/
+.gitignore

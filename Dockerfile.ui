@@ -1,0 +1,23 @@
+# Stage 1: Build the UI
+FROM node:20-slim AS builder
+
+WORKDIR /app
+
+COPY ui/package.json ui/package-lock.json* ./
+RUN npm install
+
+COPY ui/ ./
+RUN npm run build
+
+# Stage 2: Serve with a lightweight static server
+FROM node:20-slim
+
+WORKDIR /app
+
+RUN npm install -g serve@14
+
+COPY --from=builder /app/dist ./dist
+
+EXPOSE 5173
+
+CMD ["serve", "-s", "dist", "-l", "5173"]
