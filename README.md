@@ -397,15 +397,20 @@ opencontext/
 
 ### Tech Stack
 
-- **TypeScript** - Type-safe development everywhere
+**CLI / MCP Server**
+- **TypeScript 5.9** - Type-safe development
 - **Commander.js** - CLI framework
-- **Ollama** - Local LLM inference
 - **@modelcontextprotocol/sdk** - MCP server
+- **Ollama** - Local LLM inference (optional)
 - **adm-zip** - ZIP file handling
 - **chalk** - Terminal colors
-- **React 19 + Vite** - Web UI
-- **React Router 7** - UI routing
-- **Lucide React** - UI icons
+
+**Web UI**
+- **React 19 + Vite 7** - UI framework and build tool
+- **React Router 7** - Client-side routing
+- **Tailwind CSS v4** - Utility-first styling
+- **shadcn/ui** - Component library (new-york style)
+- **Lucide React** - Icons
 
 ---
 

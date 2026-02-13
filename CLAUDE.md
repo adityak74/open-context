@@ -59,8 +59,8 @@ opencontext/
 │   ├── src/
 │   │   ├── main.tsx            # React app entry
 │   │   ├── App.tsx             # Router and route definitions
-│   │   ├── App.css             # All styles (dark theme, CSS variables)
-│   │   ├── index.css           # Global reset and CSS custom properties
+│   │   ├── App.css             # App-level styles
+│   │   ├── index.css           # Global reset, Tailwind directives, shadcn CSS variables
 │   │   ├── components/
 │   │   │   ├── Layout.tsx          # App shell with sidebar nav
 │   │   │   ├── Dashboard.tsx       # Home page: context overview + privacy toggle + MCP setup
@@ -100,9 +100,8 @@ opencontext/
 - **Build tool**: Vite 7 (requires Node 20+)
 - **Routing**: React Router DOM 7
 - **Icons**: Lucide React
-- **Styling**: Pure CSS with CSS custom properties (dark theme)
+- **Styling**: Tailwind CSS v4 + shadcn/ui (new-york style, zinc base, pitch black theme)
 - **State**: React Context + useReducer (no Redux/Zustand)
-- **No CSS framework** — all styles in `App.css` using BEM-like class names
 
 ---
 
@@ -250,7 +249,7 @@ npm run lint          # ESLint check
 - Prefer explicit error handling over silent failures
 - Type all function parameters and return values
 - Handle malformed export data gracefully — users may have partial or corrupted exports
-- UI components: prefer pure CSS, do not introduce Tailwind or CSS-in-JS
+- UI components: use Tailwind CSS v4 utility classes and shadcn/ui components — do not introduce CSS-in-JS or CSS modules
 - No unnecessary abstractions — three similar lines beat a premature abstraction
 
 ### Adding a New Source Provider
@@ -282,7 +281,7 @@ npm run lint          # ESLint check
 - Do not introduce breaking changes to the CLI interface without discussion
 - Do not commit generated files, build artifacts, or secrets
 - Do not include real user conversation data in tests — use anonymized fixtures only
-- Do not add Tailwind, CSS-in-JS, or CSS modules to the UI — use the existing CSS variable system
+- Do not introduce CSS-in-JS or CSS modules — use Tailwind CSS v4 utilities and shadcn/ui components
 
 ### Privacy Considerations
 
