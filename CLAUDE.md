@@ -101,6 +101,7 @@ opencontext/
 - **Routing**: React Router DOM 7
 - **Icons**: Lucide React
 - **Styling**: Tailwind CSS v4 + shadcn/ui (new-york style, zinc base, pitch black theme)
+- **shadcn/ui components**: button, badge, card, input, textarea, select, checkbox, label, separator, scroll-area, tooltip
 - **State**: React Context + useReducer (no Redux/Zustand)
 
 ---
