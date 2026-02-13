@@ -95,7 +95,7 @@ When migrating from ChatGPT to Claude, you lose all context about your communica
 
 ### Prerequisites
 
-- **Node.js 18+** (CLI/MCP), **Node.js 20+** (UI) - [Download](https://nodejs.org/)
+- **Node.js 20+** - [Download](https://nodejs.org/)
 - **ChatGPT Export** - [How to export](#-getting-your-chatgpt-export)
 - **Ollama** (optional) - [Install](https://ollama.ai/) for AI analysis
 
