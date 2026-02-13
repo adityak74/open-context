@@ -1,5 +1,7 @@
 <div align="center">
 
+> **🔌 MCP Server available** — Give Claude persistent memory across every conversation. Install the opencontext MCP server and Claude can save, recall, and search your context automatically. [Jump to setup →](#-mcp-server)
+
 # 🔄 opencontext
 
 ### Migrate your ChatGPT conversations to Claude with AI-powered analysis
