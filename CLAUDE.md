@@ -88,7 +88,7 @@ opencontext/
 ## Tech Stack
 
 ### CLI / MCP Server (`src/`)
-- **Runtime**: Node.js 18+ / TypeScript 5.9
+- **Runtime**: Node.js 20+ / TypeScript 5.9
 - **CLI framework**: Commander.js
 - **MCP**: `@modelcontextprotocol/sdk`
 - **AI analysis**: Ollama (local LLM, optional)
