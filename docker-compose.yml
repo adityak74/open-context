@@ -1,0 +1,47 @@
+services:
+  # MCP Server — communicates via stdio transport.
+  #
+  # Build:
+  #   docker compose build mcp
+  #
+  # Use with Claude Code (~/.claude/settings.json):
+  #   {
+  #     "mcpServers": {
+  #       "opencontext": {
+  #         "command": "docker",
+  #         "args": ["run", "-i", "--rm", "-v", "opencontext-data:/root/.opencontext", "opencontext-mcp"]
+  #       }
+  #     }
+  #   }
+  #
+  # Or run directly:
+  #   docker compose run --rm mcp
+  mcp:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: opencontext-mcp
+    container_name: opencontext-mcp
+    stdin_open: true
+    volumes:
+      - opencontext-data:/root/.opencontext
+    environment:
+      - OPENCONTEXT_STORE_PATH=/root/.opencontext/contexts.json
+
+  # Web UI — React dashboard for managing preferences, conversations, and exports.
+  #
+  # Start:
+  #   docker compose up ui
+  #
+  # Then open http://localhost:5173
+  ui:
+    build:
+      context: .
+      dockerfile: Dockerfile.ui
+    image: opencontext-ui
+    container_name: opencontext-ui
+    ports:
+      - "5173:5173"
+
+volumes:
+  opencontext-data:
