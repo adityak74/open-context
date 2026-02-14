@@ -527,6 +527,37 @@ Add this to `~/.claude/settings.json`:
 }
 ```
 
+#### Connect to Claude Desktop via Docker
+
+Add the same config to `~/Library/Application Support/Claude/claude_desktop_config.json` (create it if it doesn't exist), then restart Claude Desktop:
+
+```json
+{
+  "mcpServers": {
+    "opencontext": {
+      "command": "docker",
+      "args": [
+        "run", "--rm", "-i",
+        "-v", "opencontext-data:/root/.opencontext",
+        "opencontext-mcp"
+      ]
+    }
+  }
+}
+```
+
+### Usage in Claude
+
+Once connected, Claude can save and recall context automatically. Just ask naturally:
+
+**Saving context** — Claude uses `save_context` to store a summary with tags:
+
+![Save context via opencontext MCP in Claude Desktop](docs/save_context_mcp.png)
+
+**Searching context** — Claude uses `search_contexts` to find previously saved entries:
+
+![Search context via opencontext MCP in Claude Desktop](docs/get_context_mcp.png)
+
 ---
 
 ## 🐛 Troubleshooting

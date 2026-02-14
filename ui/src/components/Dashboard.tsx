@@ -210,22 +210,41 @@ function McpSection() {
                 <div className="flex-1 min-w-0 flex flex-col gap-1.5">
                   <p className="text-sm text-foreground">Build the Docker image</p>
                   <div className="flex items-center gap-2 bg-background border border-border rounded-sm px-3 py-2 font-mono text-sm text-muted-foreground">
-                    <code className="flex-1">docker build -t opencontext .</code>
-                    <CopyButton text="docker build -t opencontext ." />
+                    <code className="flex-1">docker build -t opencontext-mcp .</code>
+                    <CopyButton text="docker build -t opencontext-mcp ." />
                   </div>
                 </div>
               </div>
 
-              {/* Docker Step 2 */}
+              {/* Docker Step 2 — Claude Code */}
               <div className="flex gap-3 items-start">
                 <span className="bg-muted border border-border text-muted-foreground text-xs font-semibold w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
                   2
                 </span>
                 <div className="flex-1 min-w-0 flex flex-col gap-1.5">
                   <p className="text-sm text-foreground">
-                    Add to{' '}
+                    Claude Code — add to{' '}
                     <code className="bg-muted border border-border px-1.5 py-0.5 rounded-sm text-xs text-foreground">
                       ~/.claude/settings.json
+                    </code>
+                  </p>
+                  <div className="flex flex-col gap-2 bg-background border border-border rounded-sm px-3 py-2 font-mono text-xs text-muted-foreground">
+                    <pre className="whitespace-pre-wrap break-all">{dockerConfig}</pre>
+                    <CopyButton text={dockerConfig} />
+                  </div>
+                </div>
+              </div>
+
+              {/* Docker Alt — Claude Desktop */}
+              <div className="flex gap-3 items-start">
+                <span className="bg-muted border border-border text-muted-foreground text-xs font-semibold w-8 h-6 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 px-1">
+                  alt
+                </span>
+                <div className="flex-1 min-w-0 flex flex-col gap-1.5">
+                  <p className="text-sm text-foreground">
+                    Claude Desktop — add to{' '}
+                    <code className="bg-muted border border-border px-1.5 py-0.5 rounded-sm text-xs text-foreground">
+                      ~/Library/Application Support/Claude/claude_desktop_config.json
                     </code>
                   </p>
                   <div className="flex flex-col gap-2 bg-background border border-border rounded-sm px-3 py-2 font-mono text-xs text-muted-foreground">
