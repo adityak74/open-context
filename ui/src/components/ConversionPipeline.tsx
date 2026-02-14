@@ -20,8 +20,6 @@ const stageOrder: PipelineStage[] = [
   'uploading',
   'parsing',
   'normalizing',
-  'analyzing',
-  'exporting',
   'complete',
 ];
 
@@ -51,7 +49,9 @@ export default function ConversionPipeline() {
           <div className="flex items-center gap-1 overflow-x-auto pb-1">
             {stageOrder.map((stage, index) => {
               let status: 'pending' | 'active' | 'done' | 'error' = 'pending';
-              if (pipeline.stage === 'error' && index <= currentStageIndex) {
+              if (pipeline.stage === 'complete') {
+                status = 'done';
+              } else if (pipeline.stage === 'error' && index <= currentStageIndex) {
                 status = index === currentStageIndex ? 'error' : 'done';
               } else if (index < currentStageIndex) {
                 status = 'done';
