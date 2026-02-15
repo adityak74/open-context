@@ -373,11 +373,9 @@ cd opencontext
 
 # Install dependencies
 npm install
+cd ui && npm install && cd ..
 
-# Run in dev mode (with hot reload)
-npm run dev convert export.zip
-
-# Build TypeScript
+# Build TypeScript (CLI + server + MCP)
 npm run build
 
 # Run tests
@@ -386,6 +384,20 @@ npm test
 # Run tests with coverage
 npm run test:coverage
 ```
+
+### Running the full stack locally
+
+The UI talks to the backend server for all data — start both:
+
+```bash
+# Terminal 1 — API + MCP server (port 3000)
+npm run server
+
+# Terminal 2 — UI dev server (port 5173, proxies /api → 3000)
+cd ui && npm run dev
+```
+
+Open [http://localhost:5173](http://localhost:5173). Preferences are saved server-side to `~/.opencontext/`.
 
 ### Project Structure
 
@@ -426,8 +438,10 @@ opencontext/
 
 ### Tech Stack
 
-**CLI / MCP Server**
+**CLI / HTTP Server / MCP Server**
 - **TypeScript 5.9** - Type-safe development
+- **Express 5** - HTTP server (REST API + static UI)
+- **Multer** - Multipart file upload handling
 - **Commander.js** - CLI framework
 - **@modelcontextprotocol/sdk** - MCP server
 - **Ollama** - Local LLM inference (optional)
@@ -551,6 +565,8 @@ The server exposes a REST API alongside the UI:
 | `GET /api/health` | Health check + active config |
 | `GET /api/ollama/models` | List available Ollama models on the host |
 | `POST /api/convert` | Upload a ChatGPT ZIP, run full conversion pipeline |
+| `GET /api/preferences` | Load saved preferences (used by the UI on mount) |
+| `PUT /api/preferences` | Save preferences — writes `preferences.json`, `preferences.md`, `memory.md` |
 | `GET /api/contexts` | List saved MCP contexts (optional `?tag=` filter) |
 | `POST /api/contexts` | Save a new context |
 | `GET /api/contexts/search?q=` | Search contexts |
@@ -616,6 +632,29 @@ Once connected, Claude can save and recall context automatically. Just ask natur
 ---
 
 ## 🐛 Troubleshooting
+
+<details>
+<summary><b>Docker Issues</b></summary>
+
+**Container exits immediately with `ERR_MODULE_NOT_FOUND`**
+
+Make sure you're using the latest image — an older build may have missing `.js` extensions in ESM imports:
+```bash
+docker pull adityakarnam/opencontext:latest
+docker run -p 3000:3000 -v opencontext-data:/root/.opencontext adityakarnam/opencontext:latest
+```
+
+**UI can't reach Ollama**
+
+Ollama must be running on your host machine. The container uses `host.docker.internal:11434` by default. On Linux, add:
+```bash
+docker run -p 3000:3000 \
+  --add-host=host.docker.internal:host-gateway \
+  -v opencontext-data:/root/.opencontext \
+  adityakarnam/opencontext:latest
+```
+
+</details>
 
 <details>
 <summary><b>Ollama Issues</b></summary>
