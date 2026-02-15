@@ -119,21 +119,58 @@ npm install
 npm run build
 ```
 
-### Option A: Web UI (Recommended)
+### Option A: Docker (Recommended)
+
+The official image bundles the UI, REST API server, and MCP server into one container. Preferences and context are stored in the mounted volume — no browser storage used.
 
 ```bash
-cd ui
-npm install
-npm run dev    # Opens at http://localhost:5173
+# Pull and run — UI at http://localhost:3000
+docker run -p 3000:3000 \
+  -v opencontext-data:/root/.opencontext \
+  adityakarnam/opencontext:latest
 ```
 
-The UI lets you:
-- Fill in your preferences interactively
-- Import ChatGPT conversations
-- Preview and export to Claude, ChatGPT, or Gemini formats
-- View your context dashboard with privacy toggle (hides PII when screensharing)
+Ollama on your host machine is automatically reachable via `host.docker.internal:11434`. To use a different host:
 
-### Option B: CLI
+```bash
+docker run -p 3000:3000 \
+  -e OLLAMA_HOST=http://my-ollama-host:11434 \
+  -v opencontext-data:/root/.opencontext \
+  adityakarnam/opencontext:latest
+```
+
+Or build locally:
+
+```bash
+docker build -t adityakarnam/opencontext:latest .
+docker run -p 3000:3000 -v opencontext-data:/root/.opencontext adityakarnam/opencontext:latest
+```
+
+**What gets stored in the volume (`/root/.opencontext/`):**
+
+| File | Contents |
+|------|----------|
+| `preferences.json` | Your structured preferences (form data) |
+| `preferences.md` | Generated Claude preferences doc (ready to paste) |
+| `memory.md` | Generated Claude memory doc (ready to paste) |
+| `contexts.json` | MCP context store (saved memories) |
+
+### Option B: Local Development (UI + Server)
+
+The UI talks to the backend server for all data — no localStorage. Start both:
+
+```bash
+# Terminal 1 — API server (port 3000)
+npm install
+npm run server
+
+# Terminal 2 — UI dev server (port 5173, proxies /api → 3000)
+cd ui && npm install && npm run dev
+```
+
+Open [http://localhost:5173](http://localhost:5173). Preferences are saved server-side to `~/.opencontext/`.
+
+### Option C: CLI
 
 ```bash
 # Convert your ChatGPT export
@@ -143,35 +180,6 @@ npm start -- convert path/to/chatgpt-export.zip
 ```
 
 That's it! 🎉 You now have files ready to paste into Claude.
-
-### Option C: Docker (single image)
-
-The official image bundles the UI, API server, and MCP server into one container.
-
-```bash
-# Pull from Docker Hub
-docker pull adityakarnam/opencontext:latest
-
-# Run — UI at http://localhost:3000
-docker run -p 3000:3000 \
-  -v opencontext-data:/root/.opencontext \
-  adityakarnam/opencontext:latest
-```
-
-Ollama running on your machine is automatically reachable inside the container via `host.docker.internal:11434`. Override with:
-
-```bash
-docker run -p 3000:3000 \
-  -e OLLAMA_HOST=http://host.docker.internal:11434 \
-  -v opencontext-data:/root/.opencontext \
-  adityakarnam/opencontext:latest
-```
-
-Or build locally:
-
-```bash
-docker build -t adityakarnam/opencontext:latest .
-```
 
 ---
 
@@ -512,6 +520,17 @@ Open [http://localhost:3000](http://localhost:3000).
 docker compose up app
 ```
 
+### Persistent storage
+
+All data is stored in the mounted volume — no browser localStorage is used. The UI reads and writes directly to the server.
+
+| File in `/root/.opencontext/` | Description |
+|-------------------------------|-------------|
+| `preferences.json` | Your structured preferences (used by the UI form) |
+| `preferences.md` | Claude preferences doc — paste into Claude Settings → Preferences |
+| `memory.md` | Claude memory doc — paste into Claude → Manage Memory |
+| `contexts.json` | MCP context entries saved by Claude |
+
 ### Environment variables
 
 | Variable | Default | Description |
@@ -519,7 +538,7 @@ docker compose up app
 | `PORT` | `3000` | HTTP server port |
 | `OLLAMA_HOST` | `http://host.docker.internal:11434` | Ollama endpoint — automatically reaches Ollama running on your host machine |
 | `OLLAMA_MODEL` | `gpt-oss:20b` | Default model for preference analysis |
-| `OPENCONTEXT_STORE_PATH` | `/root/.opencontext/contexts.json` | MCP context store location (inside the volume) |
+| `OPENCONTEXT_STORE_PATH` | `/root/.opencontext/contexts.json` | MCP context store path (preferences files live in the same directory) |
 
 `host.docker.internal` is a special DNS name that resolves to your host machine's IP from inside a Docker container. On Linux you may need `--add-host=host.docker.internal:host-gateway`.
 

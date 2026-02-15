@@ -56,9 +56,11 @@ interface AppState {
   preferences: UserPreferences;
   conversations: NormalizedConversation[];
   pipeline: PipelineState;
+  prefsLoaded: boolean;
 }
 
 type AppAction =
+  | { type: 'PREFS_LOADED'; payload: UserPreferences }
   | { type: 'SET_PREFERENCES'; payload: UserPreferences }
   | { type: 'UPDATE_PREFERENCES'; payload: Partial<UserPreferences> }
   | { type: 'SET_CONVERSATIONS'; payload: NormalizedConversation[] }
@@ -70,6 +72,8 @@ type AppAction =
 
 function appReducer(state: AppState, action: AppAction): AppState {
   switch (action.type) {
+    case 'PREFS_LOADED':
+      return { ...state, preferences: action.payload, prefsLoaded: true };
     case 'SET_PREFERENCES':
       return { ...state, preferences: action.payload };
     case 'UPDATE_PREFERENCES':
@@ -112,36 +116,49 @@ const AppContext = createContext<{
   dispatch: React.Dispatch<AppAction>;
 } | null>(null);
 
-const STORAGE_KEY = 'opencontext';
-
-function loadPersistedState(): Pick<AppState, 'preferences' | 'conversations'> {
+async function fetchPreferencesFromServer(): Promise<UserPreferences | null> {
   try {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored) {
-      const parsed = JSON.parse(stored);
-      return {
-        preferences: parsed.preferences ?? defaultPreferences,
-        conversations: parsed.conversations ?? [],
-      };
-    }
+    const res = await fetch('/api/preferences');
+    if (!res.ok) return null;
+    return (await res.json()) as UserPreferences | null;
   } catch {
-    // ignore corrupted storage
+    return null;
   }
-  return { preferences: defaultPreferences, conversations: [] };
+}
+
+let saveTimer: ReturnType<typeof setTimeout> | null = null;
+
+function scheduleSave(preferences: UserPreferences) {
+  if (saveTimer) clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => {
+    fetch('/api/preferences', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(preferences),
+    }).catch(() => {});
+  }, 800);
 }
 
 export function AppProvider({ children }: { children: ReactNode }) {
-  const [state, dispatch] = useReducer(appReducer, undefined, () => ({
-    ...loadPersistedState(),
+  const [state, dispatch] = useReducer(appReducer, {
+    preferences: defaultPreferences,
+    conversations: [],
     pipeline: defaultPipeline,
-  }));
+    prefsLoaded: false,
+  });
 
+  // Load preferences from server on mount
   useEffect(() => {
-    localStorage.setItem(
-      STORAGE_KEY,
-      JSON.stringify({ preferences: state.preferences, conversations: state.conversations })
-    );
-  }, [state.preferences, state.conversations]);
+    fetchPreferencesFromServer().then((prefs) => {
+      dispatch({ type: 'PREFS_LOADED', payload: prefs ?? defaultPreferences });
+    });
+  }, []);
+
+  // Save preferences to server whenever they change (debounced, skip initial load)
+  useEffect(() => {
+    if (!state.prefsLoaded) return;
+    scheduleSave(state.preferences);
+  }, [state.preferences, state.prefsLoaded]);
 
   return (
     <AppContext.Provider value={{ state, dispatch }}>

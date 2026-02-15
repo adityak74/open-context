@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import { AppProvider, useAppState, defaultPreferences } from '../context';
 import React from 'react';
 import type { UserPreferences, NormalizedConversation, PipelineState } from '../../types/preferences';
@@ -200,119 +200,107 @@ describe('AppProvider and useAppState', () => {
   });
 });
 
-describe('localStorage persistence', () => {
+describe('server API persistence', () => {
   const wrapper = ({ children }: { children: React.ReactNode }) => <AppProvider>{children}</AppProvider>;
 
   beforeEach(() => {
-    vi.clearAllMocks();
+    vi.spyOn(global, 'fetch').mockResolvedValue({
+      ok: true,
+      json: async () => null,
+    } as Response);
   });
 
   afterEach(() => {
-    vi.mocked(localStorage.getItem).mockReset();
-    vi.mocked(localStorage.setItem).mockReset();
+    vi.restoreAllMocks();
   });
 
-  it('should load persisted preferences from localStorage on init', () => {
-    const stored = {
-      preferences: { ...defaultPreferences, customInstructions: 'persisted instruction' },
-      conversations: [],
-    };
-    vi.mocked(localStorage.getItem).mockReturnValue(JSON.stringify(stored));
-
+  it('fetches preferences from /api/preferences on mount', async () => {
     render(<TestComponent />, { wrapper });
-
-    const prefs = JSON.parse(screen.getByTestId('preferences').textContent || '{}');
-    expect(prefs.customInstructions).toBe('persisted instruction');
-  });
-
-  it('should load persisted conversations from localStorage on init', () => {
-    const stored = {
-      preferences: defaultPreferences,
-      conversations: [
-        { id: 'saved-1', title: 'Saved Conv', created: '2024-01-01', updated: '2024-01-01', messages: [], selected: true },
-      ],
-    };
-    vi.mocked(localStorage.getItem).mockReturnValue(JSON.stringify(stored));
-
-    render(<TestComponent />, { wrapper });
-
-    const convs = JSON.parse(screen.getByTestId('conversations').textContent || '[]');
-    expect(convs).toHaveLength(1);
-    expect(convs[0].id).toBe('saved-1');
-  });
-
-  it('should fall back to defaults when localStorage has corrupted data', () => {
-    vi.mocked(localStorage.getItem).mockReturnValue('invalid json {{{');
-
-    render(<TestComponent />, { wrapper });
-
-    const prefs = JSON.parse(screen.getByTestId('preferences').textContent || '{}');
-    expect(prefs.communicationStyle.tone).toBe('neutral');
-    expect(JSON.parse(screen.getByTestId('conversations').textContent || '[]')).toEqual([]);
-  });
-
-  it('should fall back to defaults when localStorage is empty', () => {
-    vi.mocked(localStorage.getItem).mockReturnValue(null);
-
-    render(<TestComponent />, { wrapper });
-
-    const prefs = JSON.parse(screen.getByTestId('preferences').textContent || '{}');
-    expect(prefs.communicationStyle.tone).toBe('neutral');
-    expect(JSON.parse(screen.getByTestId('conversations').textContent || '[]')).toEqual([]);
-  });
-
-  it('should persist preferences to localStorage when they change', async () => {
-    vi.mocked(localStorage.getItem).mockReturnValue(null);
-    render(<TestComponent />, { wrapper });
-
-    fireEvent.click(screen.getByTestId('set-preferences'));
-
     await waitFor(() => {
-      expect(localStorage.setItem).toHaveBeenCalledWith(
-        'opencontext',
-        expect.stringContaining('"customInstructions":"test"')
-      );
+      expect(fetch).toHaveBeenCalledWith('/api/preferences');
     });
   });
 
-  it('should persist conversations to localStorage when they change', async () => {
-    vi.mocked(localStorage.getItem).mockReturnValue(null);
+  it('loads persisted preferences when server returns them', async () => {
+    const serverPrefs = { ...defaultPreferences, customInstructions: 'from server' };
+    vi.spyOn(global, 'fetch').mockResolvedValue({
+      ok: true,
+      json: async () => serverPrefs,
+    } as Response);
+
     render(<TestComponent />, { wrapper });
 
-    fireEvent.click(screen.getByTestId('set-conversations'));
-
     await waitFor(() => {
-      expect(localStorage.setItem).toHaveBeenCalledWith(
-        'opencontext',
-        expect.stringContaining('"title":"Test"')
-      );
+      const prefs = JSON.parse(screen.getByTestId('preferences').textContent || '{}');
+      expect(prefs.customInstructions).toBe('from server');
     });
   });
 
-  it('should not include pipeline state in localStorage', async () => {
-    vi.mocked(localStorage.getItem).mockReturnValue(null);
+  it('falls back to defaults when server returns null', async () => {
     render(<TestComponent />, { wrapper });
 
-    fireEvent.click(screen.getByTestId('set-pipeline'));
-
     await waitFor(() => {
-      const calls = vi.mocked(localStorage.setItem).mock.calls;
-      expect(calls.length).toBeGreaterThan(0);
-      const lastCall = calls.at(-1)?.[1] || '';
-      expect(JSON.parse(lastCall).pipeline).toBeUndefined();
+      const prefs = JSON.parse(screen.getByTestId('preferences').textContent || '{}');
+      expect(prefs.communicationStyle.tone).toBe('neutral');
     });
   });
 
-  it('should use STORAGE_KEY "opencontext" for all reads and writes', async () => {
-    vi.mocked(localStorage.getItem).mockReturnValue(null);
+  it('falls back to defaults when server fetch fails', async () => {
+    vi.spyOn(global, 'fetch').mockRejectedValue(new Error('network error'));
+
     render(<TestComponent />, { wrapper });
 
-    fireEvent.click(screen.getByTestId('set-preferences'));
-
     await waitFor(() => {
-      expect(localStorage.getItem).toHaveBeenCalledWith('opencontext');
-      expect(localStorage.setItem).toHaveBeenCalledWith('opencontext', expect.any(String));
+      const prefs = JSON.parse(screen.getByTestId('preferences').textContent || '{}');
+      expect(prefs.communicationStyle.tone).toBe('neutral');
     });
+  });
+
+  it('saves preferences to /api/preferences after change (debounced)', async () => {
+    vi.useFakeTimers();
+    try {
+      vi.spyOn(global, 'fetch')
+        .mockResolvedValueOnce({ ok: true, json: async () => null } as Response)
+        .mockResolvedValue({ ok: true, json: async () => ({}) } as Response);
+
+      render(<TestComponent />, { wrapper });
+
+      // Flush the initial load (GET /api/preferences)
+      await act(async () => { vi.runAllTimersAsync(); });
+
+      fireEvent.click(screen.getByTestId('set-preferences'));
+
+      // Advance past the 800ms debounce and flush
+      await act(async () => { vi.advanceTimersByTime(1000); });
+      await act(async () => { vi.runAllTimersAsync(); });
+
+      const calls = vi.mocked(fetch).mock.calls;
+      const putCall = calls.find(([url, opts]) => url === '/api/preferences' && (opts as RequestInit)?.method === 'PUT');
+      expect(putCall).toBeDefined();
+      const body = JSON.parse((putCall![1] as RequestInit).body as string);
+      expect(body.customInstructions).toBe('test');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('does not save preferences before initial load completes', async () => {
+    vi.useFakeTimers();
+    try {
+      // fetch never resolves — simulates slow server
+      vi.spyOn(global, 'fetch').mockReturnValue(new Promise(() => {}));
+
+      render(<TestComponent />, { wrapper });
+      fireEvent.click(screen.getByTestId('set-preferences'));
+
+      await act(async () => { vi.advanceTimersByTime(1000); });
+
+      // Only the initial GET, no PUT
+      expect(fetch).toHaveBeenCalledTimes(1);
+      expect((vi.mocked(fetch).mock.calls[0][1] as RequestInit | undefined)?.method).toBeUndefined();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 
