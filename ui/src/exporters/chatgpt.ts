@@ -1,18 +1,9 @@
 import type {
   UserPreferences,
   NormalizedConversation,
-  VendorInfo,
 } from '../types/preferences';
 import type { VendorExporter } from './base';
-
-const info: VendorInfo = {
-  id: 'chatgpt',
-  name: 'ChatGPT',
-  description: 'Export as ChatGPT custom instructions',
-  supportsPreferences: true,
-  supportsMemory: true,
-  supportsConversationImport: false,
-};
+import { chatGPTInfo as info } from './info';
 
 function buildWhatToKnow(prefs: UserPreferences, conversations: NormalizedConversation[]): string {
   const lines: string[] = [];
