@@ -201,7 +201,7 @@ app.delete('/api/contexts/:id', (req: Request, res: Response) => {
 // SPA fallback — all non-API routes serve the React app
 // ---------------------------------------------------------------------------
 
-app.get('*', (_req: Request, res: Response) => {
+app.get('/{*splat}', (_req: Request, res: Response) => {
   const indexPath = path.join(publicDir, 'index.html');
   if (fs.existsSync(indexPath)) {
     res.sendFile(indexPath);
@@ -210,14 +210,19 @@ app.get('*', (_req: Request, res: Response) => {
   }
 });
 
+// Export app for testing (supertest imports it without starting the server)
+export { app };
+
 // ---------------------------------------------------------------------------
-// Start
+// Start — skipped when imported by tests (NODE_ENV=test set by Vitest)
 // ---------------------------------------------------------------------------
 
-const PORT = parseInt(process.env.PORT ?? '3000', 10);
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`opencontext server  →  http://0.0.0.0:${PORT}`);
-  console.log(`Ollama host         →  ${OLLAMA_HOST}`);
-  console.log(`Context store       →  ${storePath}`);
-  console.log(`UI                  →  ${fs.existsSync(publicDir) ? 'served from /public' : 'not built'}`);
-});
+if (process.env.NODE_ENV !== 'test') {
+  const PORT = parseInt(process.env.PORT ?? '3000', 10);
+  app.listen(PORT, '0.0.0.0', () => {
+    console.log(`opencontext server  →  http://0.0.0.0:${PORT}`);
+    console.log(`Ollama host         →  ${OLLAMA_HOST}`);
+    console.log(`Context store       →  ${storePath}`);
+    console.log(`UI                  →  ${fs.existsSync(publicDir) ? 'served from /public' : 'not built'}`);
+  });
+}
