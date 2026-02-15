@@ -1,4 +1,4 @@
-import type { NormalizedConversation, NormalizedMessage } from '../parsers/types';
+import type { NormalizedConversation, NormalizedMessage } from '../parsers/types.js';
 
 export class MarkdownFormatter {
   /**

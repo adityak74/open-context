@@ -5,13 +5,13 @@ import { existsSync, readFileSync } from 'fs';
 import { join } from 'path';
 import chalk from 'chalk';
 
-import { ZipExtractor } from './extractor';
-import { ChatGPTParser } from './parsers/chatgpt';
-import { ConversationNormalizer } from './parsers/normalizer';
-import { MarkdownFormatter } from './formatters/markdown';
-import { OllamaPreferenceAnalyzer } from './analyzers/ollama-preferences';
-import { ensureDir, writeFile, copyImages } from './utils/file';
-import type { NormalizedConversation } from './parsers/types';
+import { ZipExtractor } from './extractor.js';
+import { ChatGPTParser } from './parsers/chatgpt.js';
+import { ConversationNormalizer } from './parsers/normalizer.js';
+import { MarkdownFormatter } from './formatters/markdown.js';
+import { OllamaPreferenceAnalyzer } from './analyzers/ollama-preferences.js';
+import { ensureDir, writeFile, copyImages } from './utils/file.js';
+import type { NormalizedConversation } from './parsers/types.js';
 
 const program = new Command();
 

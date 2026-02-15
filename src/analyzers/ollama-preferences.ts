@@ -1,5 +1,5 @@
 import { Ollama } from 'ollama';
-import type { NormalizedConversation } from '../parsers/types';
+import type { NormalizedConversation } from '../parsers/types.js';
 
 export class OllamaPreferenceAnalyzer {
   private ollama: Ollama;

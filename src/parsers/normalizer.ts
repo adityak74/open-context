@@ -1,5 +1,5 @@
-import type { ChatGPTConversation, NormalizedConversation, NormalizedMessage, Message } from './types';
-import { ChatGPTParser } from './chatgpt';
+import type { ChatGPTConversation, NormalizedConversation, NormalizedMessage, Message } from './types.js';
+import { ChatGPTParser } from './chatgpt.js';
 
 export class ConversationNormalizer {
   private parser: ChatGPTParser;

@@ -1,5 +1,5 @@
 import { readFileSync } from 'fs';
-import type { ChatGPTConversation, Message, MessageNode } from './types';
+import type { ChatGPTConversation, Message, MessageNode } from './types.js';
 
 export class ChatGPTParser {
   /**

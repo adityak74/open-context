@@ -2,7 +2,7 @@ import AdmZip from 'adm-zip';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import { mkdirSync, existsSync, rmSync } from 'fs';
-import type { ExtractedFiles } from './parsers/types';
+import type { ExtractedFiles } from './parsers/types.js';
 
 export class ZipExtractor {
   /**
