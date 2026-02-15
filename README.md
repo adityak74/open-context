@@ -513,6 +513,7 @@ The Dashboard page in the web UI shows this setup guide with copy buttons.
 ## 🐳 Docker
 
 **Docker Hub:** [hub.docker.com/r/adityakarnam/opencontext](https://hub.docker.com/r/adityakarnam/opencontext)
+The official image (adityakarnam/opencontext:latest) has been scanned and contains no critical vulnerabilities.
 
 The official image is a single container that bundles the **React UI**, the **REST API server**, and the **MCP server** — all based on `node:25-slim`.
 
