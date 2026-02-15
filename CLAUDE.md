@@ -21,8 +21,15 @@ opencontext reads exported conversation archives, normalizes them, and outputs C
 ### Components
 
 1. **CLI** (`src/`) — Node.js/TypeScript CLI for batch converting chat exports
-2. **Web UI** (`ui/`) — React + Vite dashboard for managing preferences, importing conversations, and exporting to multiple vendors
-3. **MCP server** (`src/mcp/`) — Model Context Protocol server that lets Claude save/recall persistent context
+2. **HTTP server** (`src/server.ts`) — Express REST API that serves the built UI and exposes the conversion pipeline + context store over HTTP
+3. **Web UI** (`ui/`) — React + Vite dashboard for managing preferences, importing conversations, and exporting to multiple vendors
+4. **MCP server** (`src/mcp/`) — Model Context Protocol server that lets Claude save/recall persistent context
+
+### Docker Hub
+
+**Image:** [`adityakarnam/opencontext:latest`](https://hub.docker.com/r/adityakarnam/opencontext)
+
+Single image containing UI + API server + MCP server. Default CMD runs the HTTP server on port 3000. Override CMD to `node dist/mcp/index.js` for MCP stdio mode.
 
 ---
 
@@ -34,8 +41,9 @@ opencontext/
 ├── README.md                   # User-facing docs
 ├── package.json                # CLI/MCP dependencies and scripts
 │
-├── src/                        # CLI + MCP server
+├── src/                        # CLI + HTTP server + MCP server
 │   ├── index.ts                # CLI entry point (Commander.js)
+│   ├── server.ts               # Express HTTP server (UI + REST API, port 3000)
 │   ├── extractor.ts            # ZIP extraction & temp file management
 │   ├── parsers/
 │   │   ├── types.ts            # TypeScript interfaces for parser output
@@ -142,7 +150,20 @@ npm run mcp:server
 node dist/mcp/index.js
 ```
 
-**Claude Code integration** (`~/.claude/settings.json`):
+**Claude Code / Claude Desktop — Docker (recommended):**
+```json
+{
+  "mcpServers": {
+    "opencontext": {
+      "command": "docker",
+      "args": ["run", "-i", "--rm", "-v", "opencontext-data:/root/.opencontext",
+               "adityakarnam/opencontext:latest", "node", "dist/mcp/index.js"]
+    }
+  }
+}
+```
+
+**Claude Code — local Node.js build** (`~/.claude/settings.json`):
 ```json
 {
   "mcpServers": {
@@ -212,6 +233,20 @@ npm test
 npm run test:coverage
 ```
 
+### HTTP Server Development
+
+```bash
+npm run server        # Start Express server in dev mode (tsx, port 3000)
+npm run server:prod   # Start from compiled dist/ (after npm run build)
+```
+
+The server serves `public/` as the UI. To get a full local stack:
+```bash
+cd ui && npm run build && cd ..   # Build UI into ui/dist/
+cp -r ui/dist public/              # (or let Docker do it)
+npm run server                     # Server picks up public/
+```
+
 ### MCP Server Development
 
 ```bash
@@ -229,12 +264,27 @@ npm run build         # Production build (requires Node 25+)
 npm run lint          # ESLint check
 ```
 
+### Docker (single image)
+
+```bash
+docker build -t adityakarnam/opencontext:latest .
+docker run -p 3000:3000 -v opencontext-data:/root/.opencontext adityakarnam/opencontext:latest
+# or
+docker compose up app
+```
+
+Push to Docker Hub:
+```bash
+docker push adityakarnam/opencontext:latest
+```
+
 ### Common Commands
 
 | Command | Description |
 |---------|-------------|
 | `npm test` | Run CLI test suite (vitest) |
-| `npm run build` | Compile TypeScript (CLI + MCP) |
+| `npm run build` | Compile TypeScript (CLI + server + MCP) |
+| `npm run server` | Run HTTP server in dev mode |
 | `npm run mcp:server` | Run MCP server in dev mode |
 | `cd ui && npm run dev` | Start UI dev server |
 | `cd ui && npm run build` | Build UI |

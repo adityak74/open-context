@@ -1,39 +1,61 @@
-# Stage 1: Build
-FROM node:25-slim AS builder
+# ============================================================
+# opencontext — single image: UI + API server + MCP server
+# Docker Hub: https://hub.docker.com/r/adityakarnam/opencontext
+# ============================================================
+
+# Stage 1: Build the React UI
+FROM node:25-slim AS ui-builder
+
+WORKDIR /ui
+
+COPY ui/package.json ui/package-lock.json* ./
+RUN npm ci
+
+COPY ui/ ./
+RUN npm run build
+
+
+# Stage 2: Build the TypeScript server / CLI / MCP
+FROM node:25-slim AS server-builder
 
 WORKDIR /app
 
-# Install CLI/MCP dependencies
 COPY package.json package-lock.json* ./
-RUN npm install
+RUN npm ci
 
-# Copy source and build TypeScript
 COPY tsconfig.json ./
 COPY src/ ./src/
 RUN npm run build
 
-# Stage 2: Production
+
+# Stage 3: Production image
 FROM node:25-slim
 
 WORKDIR /app
 
 # Install production dependencies only
 COPY package.json package-lock.json* ./
-RUN npm install --omit=dev
+RUN npm ci --omit=dev
 
-# Copy built output from builder
-COPY --from=builder /app/dist ./dist
+# Copy compiled server + MCP + CLI
+COPY --from=server-builder /app/dist ./dist
 
-# Create the default context store directory
+# Copy built UI into /app/public so the server can serve it
+COPY --from=ui-builder /ui/dist ./public
+
+# Persistent volume for MCP context store
 RUN mkdir -p /root/.opencontext
-
-# Persistent volume for context data
 VOLUME /root/.opencontext
 
-# Allow overriding the store path via environment variable
+# Environment defaults
 ENV OPENCONTEXT_STORE_PATH=/root/.opencontext/contexts.json
+# Ollama on the host machine — accessible from inside Docker via host.docker.internal
+ENV OLLAMA_HOST=http://host.docker.internal:11434
+ENV PORT=3000
 
-# The MCP server uses stdio transport, so the container entrypoint
-# is the MCP server process. Run with `docker run -i` to enable
-# stdin/stdout communication.
-ENTRYPOINT ["node", "dist/mcp/index.js"]
+EXPOSE 3000
+
+# Default: run the HTTP server (serves UI + REST API)
+# Override for MCP stdio mode:
+#   docker run -i adityakarnam/opencontext:latest node dist/mcp/index.js
+CMD ["node", "dist/server.js"]

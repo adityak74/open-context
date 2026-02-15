@@ -1,47 +1,55 @@
 services:
-  # MCP Server — communicates via stdio transport.
+  # Combined image: HTTP server (UI + API) + MCP server bundled
   #
   # Build:
-  #   docker compose build mcp
+  #   docker compose build app
   #
-  # Use with Claude Code (~/.claude/settings.json):
+  # Run:
+  #   docker compose up app
+  #
+  # Then open http://localhost:3000
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: adityakarnam/opencontext:latest
+    container_name: opencontext
+    ports:
+      - "3000:3000"
+    volumes:
+      - opencontext-data:/root/.opencontext
+    environment:
+      - OPENCONTEXT_STORE_PATH=/root/.opencontext/contexts.json
+      # Ollama runs on the host — host.docker.internal resolves to the host machine IP
+      - OLLAMA_HOST=http://host.docker.internal:11434
+      - PORT=3000
+    # On Linux, host.docker.internal needs to be explicitly mapped
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  # MCP stdio mode — used by Claude Desktop / Claude Code
+  #
+  # Use with ~/.claude/settings.json or claude_desktop_config.json:
   #   {
   #     "mcpServers": {
   #       "opencontext": {
   #         "command": "docker",
-  #         "args": ["run", "-i", "--rm", "-v", "opencontext-data:/root/.opencontext", "opencontext-mcp"]
+  #         "args": ["run", "-i", "--rm", "-v", "opencontext-data:/root/.opencontext", "adityakarnam/opencontext:latest", "node", "dist/mcp/index.js"]
   #       }
   #     }
   #   }
-  #
-  # Or run directly:
-  #   docker compose run --rm mcp
   mcp:
+    image: adityakarnam/opencontext:latest
     build:
       context: .
       dockerfile: Dockerfile
-    image: opencontext-mcp
     container_name: opencontext-mcp
     stdin_open: true
     volumes:
       - opencontext-data:/root/.opencontext
     environment:
       - OPENCONTEXT_STORE_PATH=/root/.opencontext/contexts.json
-
-  # Web UI — React dashboard for managing preferences, conversations, and exports.
-  #
-  # Start:
-  #   docker compose up ui
-  #
-  # Then open http://localhost:5173
-  ui:
-    build:
-      context: .
-      dockerfile: Dockerfile.ui
-    image: opencontext-ui
-    container_name: opencontext-ui
-    ports:
-      - "5173:5173"
+    command: ["node", "dist/mcp/index.js"]
 
 volumes:
   opencontext-data:

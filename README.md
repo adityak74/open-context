@@ -12,7 +12,8 @@
 [![Node.js Version](https://img.shields.io/badge/node-%3E%3D25.0.0-brightgreen)](https://nodejs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.9-blue)](https://www.typescriptlang.org/)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](http://makeapullrequest.com)
-[![Docker](https://img.shields.io/badge/Docker-ready-2496ED?logo=docker&logoColor=white)](https://www.docker.com/)
+[![Docker](https://img.shields.io/badge/Docker-ready-2496ED?logo=docker&logoColor=white)](https://hub.docker.com/r/adityakarnam/opencontext)
+[![Docker Pulls](https://img.shields.io/docker/pulls/adityakarnam/opencontext)](https://hub.docker.com/r/adityakarnam/opencontext)
 ![Coverage](https://img.shields.io/badge/coverage-100%25-brightgreen)
 
 [Features](#-features) • [Quick Start](#-quick-start) • [Usage](#-usage) • [Documentation](#-documentation) • [Contributing](#-contributing)
@@ -140,19 +141,33 @@ npm start -- convert path/to/chatgpt-export.zip
 
 That's it! 🎉 You now have files ready to paste into Claude.
 
-### Option C: Docker
+### Option C: Docker (single image)
 
-**Web UI**
+The official image bundles the UI, API server, and MCP server into one container.
+
 ```bash
-docker build -f Dockerfile.ui -t opencontext-ui .
-docker run -p 5173:5173 opencontext-ui
-# Opens at http://localhost:5173
+# Pull from Docker Hub
+docker pull adityakarnam/opencontext:latest
+
+# Run — UI at http://localhost:3000
+docker run -p 3000:3000 \
+  -v opencontext-data:/root/.opencontext \
+  adityakarnam/opencontext:latest
 ```
 
-**MCP Server**
+Ollama running on your machine is automatically reachable inside the container via `host.docker.internal:11434`. Override with:
+
 ```bash
-docker build -t opencontext-mcp .
-docker run -i -v opencontext-data:/root/.opencontext opencontext-mcp
+docker run -p 3000:3000 \
+  -e OLLAMA_HOST=http://host.docker.internal:11434 \
+  -v opencontext-data:/root/.opencontext \
+  adityakarnam/opencontext:latest
+```
+
+Or build locally:
+
+```bash
+docker build -t adityakarnam/opencontext:latest .
 ```
 
 ---
@@ -471,76 +486,93 @@ The Dashboard page in the web UI shows this setup guide with copy buttons.
 
 ## 🐳 Docker
 
-Both the Web UI and MCP Server ship with Dockerfiles for containerized deployment. Both images are based on **node:25-slim**.
+**Docker Hub:** [hub.docker.com/r/adityakarnam/opencontext](https://hub.docker.com/r/adityakarnam/opencontext)
 
-### Web UI
+The official image is a single container that bundles the **React UI**, the **REST API server**, and the **MCP server** — all based on `node:25-slim`.
 
-Build and run the UI with a lightweight static server on port 5173:
-
-```bash
-# Build
-docker build -f Dockerfile.ui -t opencontext-ui .
-
-# Run
-docker run -p 5173:5173 opencontext-ui
-```
-
-Open [http://localhost:5173](http://localhost:5173) in your browser.
-
-### MCP Server
-
-The MCP server uses stdio transport and stores context in a named volume so data persists across container restarts.
+### Quick start
 
 ```bash
-# Build
-docker build -t opencontext-mcp .
+docker pull adityakarnam/opencontext:latest
 
-# Run (the -i flag is required for stdin/stdout communication)
-docker run -i -v opencontext-data:/root/.opencontext opencontext-mcp
+docker run -p 3000:3000 \
+  -v opencontext-data:/root/.opencontext \
+  adityakarnam/opencontext:latest
 ```
 
-To use a custom store path, pass the environment variable:
+Open [http://localhost:3000](http://localhost:3000).
+
+### With docker compose
 
 ```bash
-docker run -i \
-  -v opencontext-data:/data \
-  -e OPENCONTEXT_STORE_PATH=/data/contexts.json \
-  opencontext-mcp
+docker compose up app
 ```
 
-#### Connect to Claude Code via Docker
+### Environment variables
 
-Add this to `~/.claude/settings.json`:
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `PORT` | `3000` | HTTP server port |
+| `OLLAMA_HOST` | `http://host.docker.internal:11434` | Ollama endpoint — automatically reaches Ollama running on your host machine |
+| `OLLAMA_MODEL` | `gpt-oss:20b` | Default model for preference analysis |
+| `OPENCONTEXT_STORE_PATH` | `/root/.opencontext/contexts.json` | MCP context store location (inside the volume) |
+
+`host.docker.internal` is a special DNS name that resolves to your host machine's IP from inside a Docker container. On Linux you may need `--add-host=host.docker.internal:host-gateway`.
+
+### REST API
+
+The server exposes a REST API alongside the UI:
+
+| Endpoint | Description |
+|----------|-------------|
+| `GET /api/health` | Health check + active config |
+| `GET /api/ollama/models` | List available Ollama models on the host |
+| `POST /api/convert` | Upload a ChatGPT ZIP, run full conversion pipeline |
+| `GET /api/contexts` | List saved MCP contexts (optional `?tag=` filter) |
+| `POST /api/contexts` | Save a new context |
+| `GET /api/contexts/search?q=` | Search contexts |
+| `GET /api/contexts/:id` | Get a context by ID |
+| `PUT /api/contexts/:id` | Update a context |
+| `DELETE /api/contexts/:id` | Delete a context |
+
+### MCP stdio mode
+
+The same image can be used as an MCP server by overriding the command:
+
+```bash
+docker run -i --rm \
+  -v opencontext-data:/root/.opencontext \
+  adityakarnam/opencontext:latest \
+  node dist/mcp/index.js
+```
+
+#### Connect to Claude Code
+
+Add to `~/.claude/settings.json`:
 
 ```json
 {
   "mcpServers": {
     "opencontext": {
       "command": "docker",
-      "args": [
-        "run", "--rm", "-i",
-        "-v", "opencontext-data:/root/.opencontext",
-        "opencontext-mcp"
-      ]
+      "args": ["run", "-i", "--rm", "-v", "opencontext-data:/root/.opencontext",
+               "adityakarnam/opencontext:latest", "node", "dist/mcp/index.js"]
     }
   }
 }
 ```
 
-#### Connect to Claude Desktop via Docker
+#### Connect to Claude Desktop
 
-Add the same config to `~/Library/Application Support/Claude/claude_desktop_config.json` (create it if it doesn't exist), then restart Claude Desktop:
+Add to `~/Library/Application Support/Claude/claude_desktop_config.json`, then restart Claude Desktop:
 
 ```json
 {
   "mcpServers": {
     "opencontext": {
       "command": "docker",
-      "args": [
-        "run", "--rm", "-i",
-        "-v", "opencontext-data:/root/.opencontext",
-        "opencontext-mcp"
-      ]
+      "args": ["run", "-i", "--rm", "-v", "opencontext-data:/root/.opencontext",
+               "adityakarnam/opencontext:latest", "node", "dist/mcp/index.js"]
     }
   }
 }
