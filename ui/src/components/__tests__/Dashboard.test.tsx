@@ -88,7 +88,7 @@ describe('Dashboard', () => {
   it('should show build step in MCP section', () => {
     renderWithProviders();
 
-    expect(screen.getByText('Build the project')).toBeInTheDocument();
+    expect(screen.getByText('Build the Docker image')).toBeInTheDocument();
   });
 
   it('should show copy buttons for commands', () => {

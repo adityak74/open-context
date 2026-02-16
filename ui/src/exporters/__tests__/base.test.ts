@@ -13,32 +13,33 @@ const mockPreferences: any = {
 
 describe('Exporters', () => {
   it('chatGPTExporter should have correct vendor info', async () => {
-    const chatGPTModule = await import('../chatgpt');
-    console.log(chatGPTModule);
-    const { chatGPTExporter } = chatGPTModule;
-    expect(chatGPTExporter.info.vendor).toBe('ChatGPT');
-    expect(chatGPTExporter.info.vendorOfficial).toBe(true);
+    const { chatgptExporter } = await import('../chatgpt');
+    expect(chatgptExporter.info.name).toBe('ChatGPT');
+    expect(chatgptExporter.info.supportsPreferences).toBe(true);
   });
 
   it('claudeExporter should have correct vendor info', async () => {
-    const claudeModule = await import('../claude');
-    console.log(claudeModule);
-    const { claudeExporter } = claudeModule;
-    expect(claudeExporter.info.vendor).toBe('Claude');
-    expect(claudeExporter.info.vendorOfficial).toBe(true);
+    const { claudeExporter } = await import('../claude');
+    expect(claudeExporter.info.name).toBe('Claude');
+    expect(claudeExporter.info.supportsPreferences).toBe(true);
   });
 
   it('geminiExporter should have correct vendor info', async () => {
-    const geminiModule = await import('../gemini');
-    console.log(geminiModule);
-    const { geminiExporter } = geminiModule;
-    expect(geminiExporter.info.vendor).toBe('Google Gemini');
-    expect(geminiExporter.info.vendorOfficial).toBe(true);
+    const { geminiExporter } = await import('../gemini');
+    expect(geminiExporter.info.name).toBe('Google Gemini');
+    expect(geminiExporter.info.supportsPreferences).toBe(true);
   });
 
   it('chatGPTExporter should export preferences', async () => {
-    const { chatGPTExporter } = await import('../chatgpt');
-    const result = chatGPTExporter.exportPreferences(mockPreferences);
+    const { chatgptExporter } = await import('../chatgpt');
+    mockPreferences.workContext = { role: 'Engineer', industry: 'Tech', description: '' };
+    mockPreferences.personalContext = { background: '', interests: [] };
+    mockPreferences.currentFocus = { projects: [], goals: [], topOfMind: '' };
+    mockPreferences.technicalProfile = { experienceLevel: '', primaryLanguages: [], frameworks: [], tools: [] };
+    mockPreferences.communicationStyle = { tone: 'balanced', detailLevel: 'balanced', useCodeExamples: false, preferStepByStep: false, responseFormat: 'markdown' };
+    mockPreferences.behaviorPreferences = { proactiveness: 'balanced', warnAboutRisks: false, suggestAlternatives: false, followUpQuestions: false };
+    mockPreferences.customInstructions = '';
+    const result = chatgptExporter.exportPreferences(mockPreferences);
     expect(result.files).toHaveLength(2);
   });
 
