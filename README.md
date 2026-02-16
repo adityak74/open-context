@@ -14,8 +14,9 @@
 [![Node.js Version](https://img.shields.io/badge/node-%3E%3D25.0.0-brightgreen)](https://nodejs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.9-blue)](https://www.typescriptlang.org/)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](http://makeapullrequest.com)
-[![Docker](https://img.shields.io/badge/Docker-ready-2496ED?logo=docker&logoColor=white)](https://hub.docker.com/r/adityakarnam/opencontext)
-[![Docker Pulls](https://img.shields.io/docker/pulls/adityakarnam/opencontext)](https://hub.docker.com/r/adityakarnam/opencontext)
+[![Docker](https://img.shields.io/badge/Docker-ready-2496ED?logo=docker&logoColor=white)](https://hub.docker.com/r/adityakarnam/open-context)
+[![Docker Pulls](https://img.shields.io/docker/pulls/adityakarnam/open-context)](https://hub.docker.com/r/adityakarnam/open-context)
+[![Version](https://img.shields.io/badge/version-0.0.1-blue)](https://hub.docker.com/r/adityakarnam/open-context/tags)
 ![Coverage](https://img.shields.io/badge/coverage-100%25-brightgreen)
 
 [Features](#-features) • [Quick Start](#-quick-start) • [Usage](#-usage) • [Documentation](#-documentation) • [Contributing](#-contributing)
@@ -127,7 +128,7 @@ The official image bundles the UI, REST API server, and MCP server into one cont
 # Pull and run — UI at http://localhost:3000
 docker run -p 3000:3000 \
   -v opencontext-data:/root/.opencontext \
-  adityakarnam/opencontext:latest
+  adityakarnam/open-context:latest
 ```
 
 Ollama on your host machine is automatically reachable via `host.docker.internal:11434`. To use a different host:
@@ -136,14 +137,14 @@ Ollama on your host machine is automatically reachable via `host.docker.internal
 docker run -p 3000:3000 \
   -e OLLAMA_HOST=http://my-ollama-host:11434 \
   -v opencontext-data:/root/.opencontext \
-  adityakarnam/opencontext:latest
+  adityakarnam/open-context:latest
 ```
 
 Or build locally:
 
 ```bash
-docker build -t adityakarnam/opencontext:latest .
-docker run -p 3000:3000 -v opencontext-data:/root/.opencontext adityakarnam/opencontext:latest
+docker build -t adityakarnam/open-context:latest .
+docker run -p 3000:3000 -v opencontext-data:/root/.opencontext adityakarnam/open-context:latest
 ```
 
 **What gets stored in the volume (`/root/.opencontext/`):**
@@ -512,19 +513,19 @@ The Dashboard page in the web UI shows this setup guide with copy buttons.
 
 ## 🐳 Docker
 
-**Docker Hub:** [hub.docker.com/r/adityakarnam/opencontext](https://hub.docker.com/r/adityakarnam/opencontext)
-The official image (adityakarnam/opencontext:latest) has been scanned and contains no critical vulnerabilities.
+**Docker Hub:** [hub.docker.com/r/adityakarnam/open-context](https://hub.docker.com/r/adityakarnam/open-context)
+The official image (adityakarnam/open-context:latest) has been scanned and contains no critical vulnerabilities.
 
 The official image is a single container that bundles the **React UI**, the **REST API server**, and the **MCP server** — all based on `node:25-slim`.
 
 ### Quick start
 
 ```bash
-docker pull adityakarnam/opencontext:latest
+docker pull adityakarnam/open-context:latest
 
 docker run -p 3000:3000 \
   -v opencontext-data:/root/.opencontext \
-  adityakarnam/opencontext:latest
+  adityakarnam/open-context:latest
 ```
 
 Open [http://localhost:3000](http://localhost:3000).
@@ -582,7 +583,7 @@ The same image can be used as an MCP server by overriding the command:
 ```bash
 docker run -i --rm \
   -v opencontext-data:/root/.opencontext \
-  adityakarnam/opencontext:latest \
+  adityakarnam/open-context:latest \
   node dist/mcp/index.js
 ```
 
@@ -596,7 +597,7 @@ Add to `~/.claude/settings.json`:
     "open-context": {
       "command": "docker",
       "args": ["run", "-i", "--rm", "-v", "opencontext-data:/root/.opencontext",
-               "adityakarnam/opencontext:latest", "node", "dist/mcp/index.js"]
+               "adityakarnam/open-context:latest", "node", "dist/mcp/index.js"]
     }
   }
 }
@@ -612,7 +613,7 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json`, then r
     "open-context": {
       "command": "docker",
       "args": ["run", "-i", "--rm", "-v", "opencontext-data:/root/.opencontext",
-               "adityakarnam/opencontext:latest", "node", "dist/mcp/index.js"]
+               "adityakarnam/open-context:latest", "node", "dist/mcp/index.js"]
     }
   }
 }
@@ -641,8 +642,8 @@ Once connected, Claude can save and recall context automatically. Just ask natur
 
 Make sure you're using the latest image — an older build may have missing `.js` extensions in ESM imports:
 ```bash
-docker pull adityakarnam/opencontext:latest
-docker run -p 3000:3000 -v opencontext-data:/root/.opencontext adityakarnam/opencontext:latest
+docker pull adityakarnam/open-context:latest
+docker run -p 3000:3000 -v opencontext-data:/root/.opencontext adityakarnam/open-context:latest
 ```
 
 **UI can't reach Ollama**
@@ -652,7 +653,7 @@ Ollama must be running on your host machine. The container uses `host.docker.int
 docker run -p 3000:3000 \
   --add-host=host.docker.internal:host-gateway \
   -v opencontext-data:/root/.opencontext \
-  adityakarnam/opencontext:latest
+  adityakarnam/open-context:latest
 ```
 
 </details>
