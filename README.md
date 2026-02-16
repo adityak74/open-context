@@ -1,10 +1,10 @@
 <div align="center">
 
-> **🔌 MCP Server available** — Give Claude persistent memory across every conversation. Install the opencontext MCP server and Claude can save, recall, and search your context automatically. [Jump to setup →](#-mcp-server)
+> **🔌 MCP Server available** — Give Claude persistent memory across every conversation. Install the open-context MCP server and Claude can save, recall, and search your context automatically. [Jump to setup →](#-mcp-server)
 
-<img src="opencontext-logo.png" alt="opencontext logo" width="120" />
+<img src="opencontext-logo.png" alt="open-context logo" width="120" />
 
-# opencontext
+# open-context
 
 ### Save your context, your way
 
@@ -22,7 +22,7 @@
 
 <br/>
 
-![opencontext UI preview](docs/dashboard.png)
+![open-context UI preview](docs/dashboard.png)
 
 </div>
 
@@ -30,7 +30,7 @@
 
 ## 📖 Overview
 
-**opencontext** is a tool for keeping your AI context portable and persistent. It lets you bring your full conversation history when switching AI assistants, and gives Claude a persistent memory through an MCP server.
+**open-context** is a tool for keeping your AI context portable and persistent. It lets you bring your full conversation history when switching AI assistants, and gives Claude a persistent memory through an MCP server.
 
 - **🎯 Preferences** - AI-analyzed communication style ready for Claude's settings
 - **🧠 Memory** - Factual context about you, extracted from your chat history
@@ -39,7 +39,7 @@
 
 ### Why Use This?
 
-Switching AI assistants means losing all prior context — your communication style, background, and conversation history. opencontext solves that by:
+Switching AI assistants means losing all prior context — your communication style, background, and conversation history. open-context solves that by:
 
 1. Importing your chat history from ChatGPT (Gemini support planned)
 2. Analyzing your patterns with local AI (Ollama) to generate preferences and memory
@@ -303,7 +303,7 @@ npm start -- convert export.zip \
 3. Click **Export data**
 4. Wait for email (usually 1-4 hours)
 5. Download the zip file
-6. Use with opencontext
+6. Use with open-context
 
 ### Migrating to Claude
 
@@ -459,7 +459,7 @@ opencontext/
 
 ## 🔌 MCP Server
 
-The **opencontext MCP server** lets Claude remember things across conversations using a persistent local store.
+The **open-context MCP server** lets Claude remember things across conversations using a persistent local store.
 
 ### Available Tools
 
@@ -485,7 +485,7 @@ Add to `~/.claude/settings.json`:
 ```json
 {
   "mcpServers": {
-    "opencontext": {
+    "open-context": {
       "command": "node",
       "args": ["/path/to/opencontext/dist/mcp/index.js"]
     }
@@ -498,7 +498,7 @@ Add to `~/.claude/settings.json`:
 ```json
 {
   "mcpServers": {
-    "opencontext": {
+    "open-context": {
       "command": "npx",
       "args": ["tsx", "/path/to/opencontext/src/mcp/index.ts"]
     }
@@ -593,7 +593,7 @@ Add to `~/.claude/settings.json`:
 ```json
 {
   "mcpServers": {
-    "opencontext": {
+    "open-context": {
       "command": "docker",
       "args": ["run", "-i", "--rm", "-v", "opencontext-data:/root/.opencontext",
                "adityakarnam/opencontext:latest", "node", "dist/mcp/index.js"]
@@ -609,7 +609,7 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json`, then r
 ```json
 {
   "mcpServers": {
-    "opencontext": {
+    "open-context": {
       "command": "docker",
       "args": ["run", "-i", "--rm", "-v", "opencontext-data:/root/.opencontext",
                "adityakarnam/opencontext:latest", "node", "dist/mcp/index.js"]
@@ -624,11 +624,11 @@ Once connected, Claude can save and recall context automatically. Just ask natur
 
 **Saving context** — Claude uses `save_context` to store a summary with tags:
 
-![Save context via opencontext MCP in Claude Desktop](docs/save_context_mcp.png)
+![Save context via open-context MCP in Claude Desktop](docs/save_context_mcp.png)
 
 **Searching context** — Claude uses `search_contexts` to find previously saved entries:
 
-![Search context via opencontext MCP in Claude Desktop](docs/get_context_mcp.png)
+![Search context via open-context MCP in Claude Desktop](docs/get_context_mcp.png)
 
 ---
 
@@ -874,7 +874,7 @@ This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) 
 ```
 MIT License
 
-Copyright (c) 2026 opencontext contributors
+Copyright (c) 2026 open-context contributors
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
