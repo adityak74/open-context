@@ -6,15 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Plus, Pencil, X, Check, Search, Tag, Clock, Database } from 'lucide-react';
-
-interface ContextEntry {
-  id: string;
-  content: string;
-  tags: string[];
-  source: string;
-  createdAt: string;
-  updatedAt: string;
-}
+import type { ContextEntry } from '@/types/bubbles';
 
 function tagsFromString(raw: string): string[] {
   return raw

@@ -14,29 +14,7 @@ import {
   Tag,
   Sparkles,
 } from 'lucide-react';
-
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-
-interface ContextEntry {
-  id: string;
-  content: string;
-  tags: string[];
-  source: string;
-  bubbleId?: string;
-  createdAt: string;
-  updatedAt: string;
-}
-
-interface Bubble {
-  id: string;
-  name: string;
-  description?: string;
-  contextCount: number;
-  createdAt: string;
-  updatedAt: string;
-}
+import type { Bubble, ContextEntry } from '@/types/bubbles';
 
 interface VendorTarget {
   id: string;
@@ -224,7 +202,8 @@ export default function ChatWithContext() {
   const [loadingContexts, setLoadingContexts] = useState<string | null>(null);
 
   const [generatedPrompt, setGeneratedPrompt] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
+  const [copiedOnly, setCopiedOnly] = useState(false);
+  const [copiedAndOpened, setCopiedAndOpened] = useState(false);
 
   // Fetch bubbles on mount
   useEffect(() => {
@@ -274,7 +253,8 @@ export default function ChatWithContext() {
     const newId = selectedBubbleId === bubbleId ? null : bubbleId;
     setSelectedBubbleId(newId);
     setGeneratedPrompt(null);
-    setCopied(false);
+    setCopiedOnly(false);
+    setCopiedAndOpened(false);
     if (newId) {
       await fetchContextsForBubble(newId);
     }
@@ -282,6 +262,8 @@ export default function ChatWithContext() {
 
   async function handleGenerate() {
     if (!selectedBubbleId) return;
+
+    setError(null);
 
     const bubble = bubbles.find((b) => b.id === selectedBubbleId);
     if (!bubble) return;
@@ -294,7 +276,8 @@ export default function ChatWithContext() {
 
     const prompt = buildContextPrompt(bubble, contexts);
     setGeneratedPrompt(prompt);
-    setCopied(false);
+    setCopiedOnly(false);
+    setCopiedAndOpened(false);
   }
 
   function handleCopyAndOpen() {
@@ -303,18 +286,22 @@ export default function ChatWithContext() {
     const vendor = VENDORS.find((v) => v.id === selectedVendor);
     if (!vendor) return;
 
-    navigator.clipboard.writeText(generatedPrompt).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 3000);
+    navigator.clipboard?.writeText(generatedPrompt).then(() => {
+      setCopiedAndOpened(true);
+      setTimeout(() => setCopiedAndOpened(false), 3000);
       window.open(vendor.chatUrl, '_blank', 'noopener,noreferrer');
+    }).catch(() => {
+      setError('Could not copy to clipboard. Please copy manually.');
     });
   }
 
   function handleCopy() {
     if (!generatedPrompt) return;
-    navigator.clipboard.writeText(generatedPrompt).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1800);
+    navigator.clipboard?.writeText(generatedPrompt).then(() => {
+      setCopiedOnly(true);
+      setTimeout(() => setCopiedOnly(false), 1800);
+    }).catch(() => {
+      setError('Could not copy to clipboard. Please copy manually.');
     });
   }
 
@@ -407,7 +394,8 @@ export default function ChatWithContext() {
                 onClick={() => {
                   setSelectedVendor(vendor.id);
                   setGeneratedPrompt(null);
-                  setCopied(false);
+                  setCopiedOnly(false);
+                  setCopiedAndOpened(false);
                 }}
               >
                 <h4 className="text-sm font-semibold text-foreground">{vendor.name}</h4>
@@ -454,8 +442,8 @@ export default function ChatWithContext() {
                     onClick={handleCopy}
                     className="border-border text-foreground hover:bg-accent h-7 text-xs gap-1"
                   >
-                    {copied ? <Check size={11} /> : <Copy size={11} />}
-                    {copied ? 'Copied!' : 'Copy'}
+                    {copiedOnly ? <Check size={11} /> : <Copy size={11} />}
+                    {copiedOnly ? 'Copied!' : 'Copy'}
                   </Button>
                 </div>
               </CardHeader>
@@ -477,8 +465,8 @@ export default function ChatWithContext() {
                 onClick={handleCopyAndOpen}
                 className="gap-2"
               >
-                {copied ? <Check size={14} /> : <ExternalLink size={14} />}
-                {copied
+                {copiedAndOpened ? <Check size={14} /> : <ExternalLink size={14} />}
+                {copiedAndOpened
                   ? 'Copied! Opening...'
                   : `Copy & Open ${selectedVendorInfo?.name ?? 'Chat'}`}
               </Button>

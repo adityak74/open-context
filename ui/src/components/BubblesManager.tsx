@@ -16,29 +16,7 @@ import {
   Clock,
   Layers,
 } from 'lucide-react';
-
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-
-interface ContextEntry {
-  id: string;
-  content: string;
-  tags: string[];
-  source: string;
-  bubbleId?: string;
-  createdAt: string;
-  updatedAt: string;
-}
-
-interface Bubble {
-  id: string;
-  name: string;
-  description?: string;
-  contextCount: number;
-  createdAt: string;
-  updatedAt: string;
-}
+import type { Bubble, ContextEntry } from '@/types/bubbles';
 
 // ---------------------------------------------------------------------------
 // Shared helpers
