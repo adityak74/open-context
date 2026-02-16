@@ -1,6 +1,6 @@
 # ============================================================
-# opencontext — single image: UI + API server + MCP server
-# Docker Hub: https://hub.docker.com/r/adityakarnam/opencontext
+# open-context — single image: UI + API server + MCP server
+# Docker Hub: https://hub.docker.com/r/adityakarnam/open-context
 # ============================================================
 
 # Stage 1: Build the React UI
@@ -57,5 +57,5 @@ EXPOSE 3000
 
 # Default: run the HTTP server (serves UI + REST API)
 # Override for MCP stdio mode:
-#   docker run -i adityakarnam/opencontext:latest node dist/mcp/index.js
+#   docker run -i adityakarnam/open-context:latest node dist/mcp/index.js
 CMD ["node", "dist/server.js"]
