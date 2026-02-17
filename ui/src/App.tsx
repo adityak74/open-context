@@ -19,10 +19,10 @@ export default function App() {
       <AppProvider>
         <BrowserRouter>
           <Routes>
-            <Route path="/landing" element={<Landing />} />
+            <Route path="/" element={<Landing />} />
             <Route path="/login" element={<Landing />} />
             <Route element={<Layout />}>
-              <Route path="/" element={<Dashboard />} />
+              <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/preferences" element={<PreferencesEditor />} />
               <Route path="/conversations" element={<ContextViewer />} />
               <Route path="/pipeline" element={<ConversionPipeline />} />

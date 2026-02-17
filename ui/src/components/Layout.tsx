@@ -4,7 +4,7 @@ import { useAuth } from '../store/auth';
 import { Button } from '@/components/ui/button';
 
 const navItems = [
-  { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
+  { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
   { to: '/preferences', icon: Settings, label: 'Preferences' },
   { to: '/conversations', icon: MessageSquare, label: 'Conversations' },
   { to: '/pipeline', icon: GitBranch, label: 'Pipeline' },
@@ -45,7 +45,7 @@ export default function Layout() {
             <NavLink
               key={to}
               to={to}
-              end={to === '/'}
+              end
               className={({ isActive }) =>
                 `flex items-center gap-2.5 px-3 py-2 rounded-md text-sm transition-colors ${
                   isActive
