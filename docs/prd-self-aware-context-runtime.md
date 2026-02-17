@@ -86,12 +86,13 @@ Claude / Agent  ←→  MCP (stdio)  ←→  server.ts  ←→  store.ts  ←→
 | `src/mcp/awareness.ts` | **New** | Self-model builder, introspection engine, gap detection (~200 lines) |
 | `src/mcp/observer.ts` | **New** | Usage tracking, read/write/miss logging (~100 lines) |
 | `src/mcp/analyzer.ts` | **New** | Ollama-powered analysis: contradictions, schema suggestions, summarization, smart retrieval (~250 lines) |
-| `src/server.ts` | **Modified** | Add 4 new REST endpoints for schema + awareness + analysis |
+| `src/mcp/improver.ts` | **New** | Self-improvement actions: auto-tag, merge, archive, gap stubs, promote, resolve (~200 lines) |
+| `src/server.ts` | **Modified** | Add 4 new REST endpoints + self-improvement tick loop + graceful shutdown |
 | `ui/src/components/SchemaEditor.tsx` | **New** | UI for defining/editing context types |
 | `ui/src/components/AwarenessPanel.tsx` | **New** | UI for viewing self-model, gaps, health, analysis results |
 | `ui/src/App.tsx` | **Modified** | Add 2 new routes |
 
-**Estimated total new code**: ~850 lines across 4 new files + ~200 lines of modifications to 4 existing files.
+**Estimated total new code**: ~1050 lines across 5 new files + ~250 lines of modifications to existing files.
 
 ---
 
@@ -847,9 +848,9 @@ if (observer.getSummary().totalWrites % 10 === 0) {
 
 **For Ollama analysis**: write-triggered work does **not** call Ollama. Ollama analysis is only triggered by explicit requests (`deep=true`, `analyze_contradictions`, etc.) or by the optional tick loop (Layer 3). This keeps mutation paths fast.
 
-#### Layer 3: Tick-Based Background Loop (HTTP server only, optional)
+#### Layer 3: Self-Improvement Loop (HTTP server only, optional)
 
-The HTTP server gains a **single `setInterval` loop** that runs periodic maintenance. This is the only new long-running behavior in the system.
+The HTTP server gains a **single `setInterval` loop** that doesn't just cache-warm — it **actively improves the context store**. This is where self-awareness becomes real: the system observes its own state, decides what needs fixing, and takes action.
 
 ```typescript
 // In src/server.ts, after app.listen():
@@ -860,92 +861,246 @@ const ENABLE_BACKGROUND = process.env.OPENCONTEXT_BACKGROUND !== 'false' // opt-
 if (ENABLE_BACKGROUND) {
   setInterval(async () => {
     try {
-      await backgroundTick(store, schema, observer, analyzer)
+      await selfImprovementTick(store, schema, observer, analyzer)
     } catch (error) {
-      // Log and continue — background failures are non-fatal
-      console.error('[opencontext] background tick failed:', error)
+      // Log and continue — self-improvement failures are non-fatal
+      console.error('[opencontext] self-improvement tick failed:', error)
     }
   }, TICK_INTERVAL)
 }
 ```
 
-**What `backgroundTick` does** (sequentially, bounded work per tick):
+**What `selfImprovementTick` does** — observe, decide, act, record:
 
 ```typescript
-async function backgroundTick(store, schema, observer, analyzer) {
-  // 1. Rotate observation log if needed (~0ms if under cap)
+async function selfImprovementTick(store, schema, observer, analyzer) {
+  // ── Phase A: Observe (gather current state) ──
+
   observer.rotateIfNeeded()
-
-  // 2. Refresh deterministic self-model cache (~50ms)
   const selfModel = await buildSelfModel(store, schema, observer)
-  cache.set('self-model', selfModel, TTL_1_HOUR)
+  const summary = observer.getSummary()
+  const actions: ImprovementAction[] = []
 
-  // 3. If Ollama available AND deep cache expired, run deep analysis (~5-10s)
-  if (analyzer && cache.isExpired('deep-analysis')) {
-    const deep = await buildSelfModel(store, schema, observer, analyzer)
-    cache.set('deep-analysis', deep, TTL_1_HOUR)
+  // ── Phase B: Decide (identify what needs improvement) ──
+
+  // 1. Auto-tag entries that have zero tags
+  const untagged = store.listContexts().filter(e => e.tags.length === 0)
+  if (untagged.length >= 3) {
+    actions.push({ type: 'auto_tag', entries: untagged })
   }
 
-  // 4. Detect new contradictions if store changed since last check
-  if (analyzer && store.hasChangedSince(cache.get('last-contradiction-check'))) {
-    const contradictions = await analyzer.detectContradictions(store.listContexts())
-    cache.set('contradictions', contradictions, TTL_1_HOUR)
+  // 2. Merge near-duplicate entries (>80% content overlap, same type)
+  const duplicates = detectNearDuplicates(store.listContexts())
+  if (duplicates.length > 0) {
+    actions.push({ type: 'merge_duplicates', pairs: duplicates })
   }
+
+  // 3. Promote untyped entries to matching schema types
+  if (schema) {
+    const promotable = findPromotableEntries(store.listContexts(), schema)
+    if (promotable.length > 0) {
+      actions.push({ type: 'promote_to_type', entries: promotable })
+    }
+  }
+
+  // 4. Archive truly stale entries (>180 days, never read by any agent)
+  const archivable = selfModel.freshness.stalestEntries.filter(e => {
+    const reads = summary.typeReadFrequency[e.type ?? 'untyped'] ?? 0
+    return daysBetween(e.updatedAt, now()) > 180 && reads === 0
+  })
+  if (archivable.length > 0) {
+    actions.push({ type: 'archive_stale', entries: archivable })
+  }
+
+  // 5. Create gap stubs for repeatedly missed queries
+  const demandGaps = summary.missedQueries.filter(q =>
+    summary.missedQueryCount[q] >= 3  // asked 3+ times, never found
+  )
+  if (demandGaps.length > 0) {
+    actions.push({ type: 'create_gap_stubs', queries: demandGaps })
+  }
+
+  // 6. [Ollama] Auto-resolve old contradictions (newer entry wins)
+  if (analyzer) {
+    const contradictions = await analyzer.detectContradictions(
+      store.listContexts().slice(-50)
+    )
+    const autoResolvable = contradictions.filter(c =>
+      daysBetween(c.entryA.updatedAt, c.entryB.updatedAt) > 180
+    )
+    if (autoResolvable.length > 0) {
+      actions.push({ type: 'resolve_contradictions', contradictions: autoResolvable })
+    }
+  }
+
+  // 7. [Ollama] Suggest new schema types from untyped clusters
+  if (analyzer) {
+    const untyped = store.listContexts().filter(e => !e.contextType)
+    if (untyped.length >= 5) {
+      const suggestions = await analyzer.suggestSchemaTypes(untyped)
+      if (suggestions.length > 0) {
+        actions.push({ type: 'suggest_schema', suggestions })
+      }
+    }
+  }
+
+  // ── Phase C: Act (execute improvements) ──
+
+  for (const action of actions) {
+    await executeImprovement(action, store, schema, observer)
+  }
+
+  // ── Phase D: Record (audit log + refresh cache) ──
+
+  if (actions.length > 0) {
+    observer.logSelfImprovement({
+      timestamp: new Date().toISOString(),
+      actions: actions.map(a => ({ type: a.type, count: a.entries?.length ?? 1 })),
+    })
+  }
+
+  const updatedModel = await buildSelfModel(store, schema, observer, analyzer ?? undefined)
+  cache.set('self-model', updatedModel, TTL_1_HOUR)
 }
 ```
 
-**Key constraints on the tick loop**:
+### 8.4 Self-Improvement Actions (What the System Actually Does)
+
+These are the concrete, autonomous actions the system takes. Each has guardrails to prevent destructive behavior.
+
+| Action | What It Does | Guardrails |
+|---|---|---|
+| **Auto-tag** | Assigns tags to entries with zero tags, using content keyword extraction (deterministic) or Ollama classification | Only adds tags, never removes. Tags are non-destructive metadata. |
+| **Merge duplicates** | Detects entries with >80% content overlap (same type, same tags). Merges into one, keeps newest `updatedAt`, combines source fields. | Only merges entries with same `contextType`. Original content preserved in merged entry. Logged for audit. |
+| **Promote to type** | Untyped entries whose content matches an existing schema type's description get `contextType` assigned. E.g., "chose PostgreSQL because..." gets type `decision`. | Requires Ollama for semantic matching (fallback: keyword overlap with type description). Only sets `contextType`, never modifies `content`. |
+| **Archive stale** | Entries >180 days old that were never read by any agent get `archived: true` (soft delete). | Does NOT delete. Archived entries are excluded from search by default but recoverable via UI or API. Never archives entries that any agent ever read. |
+| **Create gap stubs** | When agents search for something 3+ times and find nothing, creates a stub: `"[GAP] Agents have asked about '{query}' 3 times but no context exists."` with tags `["gap", "needs-input"]` and source `"self-improvement"`. | Stubs are clearly marked. They show up in agent searches, prompting the agent or user to fill them. Auto-deleted once a real entry for that topic is saved. |
+| **Resolve contradictions** | When two entries contradict and one is >6 months newer, archive the older one. The newer entry represents evolved thinking. | Only auto-resolves with >180 day age difference. Close-in-time contradictions are flagged but NOT auto-resolved — those require user input. |
+| **Suggest schema** | When 5+ untyped entries cluster around a theme, propose a new schema type. Written to `awareness.json` as a pending suggestion. | **Never modifies `schema.yaml` autonomously.** Suggestions are surfaced to users via UI and to agents via `introspect`. User explicitly accepts or dismisses. |
+
+### 8.5 The Self-Improvement Audit Log
+
+Every autonomous action is logged to `awareness.json` so users and agents can see exactly what the system did:
+
+```json
+{
+  "improvements": [
+    {
+      "timestamp": "2026-02-17T15:30:00Z",
+      "action": "auto_tag",
+      "details": "Tagged 4 entries: added 'database' to dec-12, dec-15; added 'auth' to dec-23, dec-24",
+      "entriesAffected": ["dec-12", "dec-15", "dec-23", "dec-24"],
+      "reversible": true
+    },
+    {
+      "timestamp": "2026-02-17T15:30:01Z",
+      "action": "archive_stale",
+      "details": "Archived 2 entries older than 180 days with zero reads: note-3, note-7",
+      "entriesAffected": ["note-3", "note-7"],
+      "reversible": true
+    },
+    {
+      "timestamp": "2026-02-17T15:30:03Z",
+      "action": "create_gap_stubs",
+      "details": "Created stub for 'error handling preferences' (searched 5 times, never found)",
+      "entriesAffected": ["stub-1"],
+      "reversible": true
+    },
+    {
+      "timestamp": "2026-02-17T15:30:05Z",
+      "action": "suggest_schema",
+      "details": "Proposed new type 'api_decision' from 7 untyped entries about API design choices",
+      "suggestion": { "typeName": "api_decision", "fields": ["endpoint", "method", "reasoning"] },
+      "status": "pending_user_approval"
+    }
+  ]
+}
+```
+
+All actions are **auditable and reversible**. The user can see what the system did, when, and undo any action via UI or by calling `update_context`/`delete_context`.
+
+### 8.6 New MCP Tool: `get_improvements`
+
+Agents can ask what the system has done autonomously:
+
+```
+Tool: get_improvements
+Arguments:
+  since?: string (ISO date, default: last 24 hours)
+
+Returns: List of self-improvement actions taken
+
+Example response:
+"In the last 24 hours, I performed 3 self-improvement actions:
+
+ 1. Auto-tagged 4 entries that had no tags (added 'database', 'auth')
+ 2. Created a gap stub for 'error handling preferences' — agents asked
+    about this 5 times but no context exists. Consider filling this in.
+ 3. Suggested a new schema type 'api_decision' based on 7 untyped entries
+    about API design. Accept this in the UI or via update_schema.
+
+ 0 entries archived. 0 contradictions auto-resolved."
+```
+
+When an agent calls `introspect`, the response includes a summary of recent improvements so the agent knows the store has been autonomously modified.
+
+### 8.7 Key Constraints on the Self-Improvement Loop
 
 | Constraint | Value | Rationale |
 |---|---|---|
-| Tick interval | 5 minutes (configurable) | Frequent enough to keep cache warm, infrequent enough to not load the system |
-| Max Ollama calls per tick | 2 | Bounded: one for deep self-model, one for contradiction detection |
+| Tick interval | 5 minutes (configurable) | Frequent enough for freshness, infrequent enough to not load the system |
+| Max Ollama calls per tick | 3 | Bounded: contradiction detection, schema suggestion, type promotion |
 | Max entries per Ollama call | 50 | Sample recent entries, not full store |
 | Total tick duration cap | 30 seconds | If tick exceeds this, skip remaining Ollama work |
-| Failure behavior | Log and continue | Background failures never crash the server |
+| Failure behavior | Log and continue | Self-improvement failures never crash the server |
 | Disable flag | `OPENCONTEXT_BACKGROUND=false` | Users can opt out entirely |
+| No destructive deletes | Ever | Archive only (soft delete), never permanent removal |
+| No schema modification | Ever | Only suggests, never writes to `schema.yaml` |
 
-### 8.4 How the Three Layers Interact
+### 8.8 How the Three Layers Interact
 
 ```
 Agent calls introspect()
-  → Check Layer 3 cache (warm from background tick?)
-  → Cache hit: return instantly (<1ms)
+  → Check Layer 3 cache (warm from self-improvement tick?)
+  → Cache hit: return instantly (<1ms), includes recent improvement summary
   → Cache miss: compute Layer 1 (on-demand, <100ms)
   → Return result
 
 Agent calls introspect(deep=true)
-  → Check Layer 3 cache (deep analysis from background tick?)
+  → Check Layer 3 cache (deep analysis from self-improvement tick?)
   → Cache hit: return instantly
   → Cache miss: run Ollama now (Layer 1, 2-10s)
   → Return result
 
 Store mutation (save_typed_context, etc.)
   → Layer 2: log observation, maybe refresh self-model cache
-  → Layer 3: next tick will pick up new data automatically
+  → Layer 3: next tick picks up new data AND may act on it
 
 No agents connected, server idle
   → Layer 3 tick still runs every 5 minutes
-  → Keeps caches warm so the NEXT agent gets instant results
-  → If Ollama is available, deep analysis stays fresh
+  → Auto-tags, archives stale entries, creates gap stubs
+  → When the NEXT agent connects, the store is cleaner and richer
+  → Agent sees: "Since your last session, I auto-tagged 3 entries
+    and created a gap stub for 'testing preferences'"
 ```
 
-### 8.5 MCP Server vs HTTP Server Responsibilities
+### 8.9 MCP Server vs HTTP Server Responsibilities
 
 | Behavior | MCP Server | HTTP Server |
 |---|---|---|
 | On-demand computation (Layer 1) | Yes | Yes (via REST API) |
 | Write-triggered refresh (Layer 2) | Yes | Yes |
-| Background tick loop (Layer 3) | **No** | **Yes** |
+| Self-improvement loop (Layer 3) | **No** | **Yes** |
 | Ollama analysis | On explicit request only | Background + on request |
+| Self-improvement actions | **No** (reads results) | **Yes** (executes actions) |
 | Cache reads | Reads from `awareness.json` | Reads from in-memory + `awareness.json` |
 | Cache writes | Writes to `awareness.json` | Writes to in-memory + `awareness.json` |
 
-The MCP server stays simple and stateless. The HTTP server gains one `setInterval`. Both benefit from cached results in `awareness.json` — the HTTP server writes them, the MCP server reads them.
+The MCP server stays simple and stateless. The HTTP server is the **brain** — it runs the self-improvement loop, executes autonomous actions, and writes results to `awareness.json`. The MCP server reads those results and surfaces them to agents.
 
-**File-based cache sharing**: when the background tick on the HTTP server refreshes the self-model, it writes the result to `awareness.json`. When the MCP server (a separate process) calls `introspect`, it reads from `awareness.json` and finds a warm cache — even though the MCP server never ran any background work itself. This is the same file-sharing pattern already used for `contexts.json`.
+**File-based coordination**: when the self-improvement tick auto-tags entries or creates gap stubs, those changes go into `contexts.json`. When an agent calls `recall_context` via MCP, it sees the improved entries immediately — the same file-sharing pattern already used today.
 
-### 8.6 Docker Implications
+### 8.10 Docker Implications
 
 No changes to the Docker model:
 
@@ -961,7 +1116,7 @@ Single image, single process per container, no supervisor needed. The background
 
 If running both services (`docker compose up app mcp`), the HTTP server's background tick keeps `awareness.json` fresh, and the MCP server reads it. Coordination is through the filesystem — same pattern as today with `contexts.json`.
 
-### 8.7 Graceful Shutdown
+### 8.11 Graceful Shutdown
 
 The HTTP server needs to clean up the tick interval on shutdown:
 
@@ -979,7 +1134,7 @@ process.on('SIGTERM', () => {
 })
 ```
 
-### 8.8 What This Means for Implementation
+### 8.12 What This Means for Implementation
 
 **Changes to existing files**:
 
@@ -996,7 +1151,7 @@ process.on('SIGTERM', () => {
 
 **No new files**. No new processes. No new npm dependencies.
 
-### 8.9 Configuration Summary
+### 8.13 Configuration Summary
 
 | Setting | Default | Description |
 |---------|---------|-------------|
@@ -1258,18 +1413,21 @@ User-created. See section 4.1 for format.
 
 **Tests**: Each analysis method tested in both modes (Ollama available vs unavailable). Mock Ollama responses for deterministic test behavior. Verify fallback produces valid output for all methods.
 
-### Phase 5: Background Tick Loop (Continuous Analysis)
+### Phase 5: Self-Improvement Loop (Autonomous Actions)
 
-**Goal**: HTTP server proactively keeps caches warm, runs periodic Ollama analysis, and rotates observation logs — so agents get near-instant results.
+**Goal**: HTTP server actively improves the context store — auto-tagging, deduplication, stale archival, gap stub creation, type promotion, contradiction resolution, and schema suggestions. All actions auditable and reversible.
 
 | Step | File | Change | Effort |
 |------|------|--------|--------|
-| 5a | `src/mcp/awareness.ts` | Add `refreshCache()` function and file-based caching with TTL | S |
-| 5b | `src/mcp/observer.ts` | Add `rotateIfNeeded()` method | XS |
-| 5c | `src/server.ts` | Add `setInterval` tick loop after `app.listen()`, wire `backgroundTick()` function | S |
-| 5d | `src/server.ts` | Add `SIGTERM`/`SIGINT` graceful shutdown handler (clear interval, drain in-flight calls) | XS |
+| 5a | `src/mcp/improver.ts` | New file: `ImprovementAction` types, `detectNearDuplicates()`, `findPromotableEntries()`, `executeImprovement()`, improvement audit logging | M |
+| 5b | `src/mcp/awareness.ts` | Add `refreshCache()` function and file-based caching with TTL | S |
+| 5c | `src/mcp/observer.ts` | Add `rotateIfNeeded()`, `logSelfImprovement()`, `missedQueryCount` tracking | S |
+| 5d | `src/mcp/store.ts` | Add `archived` field support, `archiveContext()` method, gap stub auto-cleanup on matching save | S |
+| 5e | `src/server.ts` | Add `setInterval` with `selfImprovementTick()`, `SIGTERM`/`SIGINT` graceful shutdown | S |
+| 5f | `src/mcp/server.ts` | Register `get_improvements` tool, enhance `introspect` to include recent improvements | S |
+| 5g | `ui/src/components/AwarenessPanel.tsx` | Add improvement audit log viewer, undo actions, schema suggestion accept/dismiss UI | M |
 
-**Tests**: Background tick with mocked store (verify cache refresh, rotation). Verify MCP server reads warm cache from `awareness.json` written by HTTP server tick. Verify graceful shutdown clears interval.
+**Tests**: Each improvement action in isolation (auto-tag, merge, archive, gap stub, promote, resolve). Full tick with mocked store. Verify archived entries excluded from search. Verify gap stubs auto-cleanup. Verify audit log accuracy. Verify MCP server reads improvements via `awareness.json`.
 
 ### Phase Summary
 
@@ -1279,14 +1437,14 @@ User-created. See section 4.1 for format.
 | 2 | 2 (`awareness.ts`, `AwarenessPanel.tsx`) | 2 (`server.ts` MCP, `server.ts` REST, `App.tsx`) | ~350 | Phase 1 (schema needed for coverage analysis) |
 | 3 | 1 (`observer.ts`) | 3 (`store.ts`, `server.ts`, `awareness.ts`) | ~200 | Phase 2 (awareness consumes observer data) |
 | 4 | 1 (`analyzer.ts`) | 4 (`server.ts` MCP, `server.ts` REST, `awareness.ts`, `AwarenessPanel.tsx`) | ~350 | Phases 1-3 + existing `ollama` npm package (already a dependency) |
-| 5 | 0 | 3 (`server.ts`, `awareness.ts`, `observer.ts`) | ~100 | Phases 1-4 (wires existing components into a background loop) |
-| **Total** | **6 new files** | **~6 existing files modified** | **~1400 lines** | **0 new npm dependencies** (reuses existing `ollama` package) |
+| 5 | 1 (`improver.ts`) | 5 (`server.ts`, `awareness.ts`, `observer.ts`, `store.ts`, `server.ts` MCP, `AwarenessPanel.tsx`) | ~400 | Phases 1-4 (orchestrates all prior components) |
+| **Total** | **7 new files** | **~7 existing files modified** | **~1700 lines** | **0 new npm dependencies** (reuses existing `ollama` package) |
 
 ---
 
 ## 12. New MCP Tool Summary
 
-After implementation, the MCP server exposes **19 tools** (11 existing + 8 new):
+After implementation, the MCP server exposes **20 tools** (11 existing + 9 new):
 
 ### Existing (unchanged)
 
@@ -1322,6 +1480,12 @@ After implementation, the MCP server exposes **19 tools** (11 existing + 8 new):
 | `suggest_schema` | Analysis | LLM-powered clustering of untyped entries into proposed schema types with descriptions | Tag-grouping + structural pattern matching |
 | `summarize_context` | Analysis | LLM-generated briefing paragraph synthesized from multiple entries | Truncated concatenation with entry counts |
 
+### New (Phase 5: Self-Improvement)
+
+| Tool | Category | Description |
+|------|----------|-------------|
+| `get_improvements` | Self-Improvement | Returns list of autonomous actions taken (auto-tags, archives, gap stubs, schema suggestions) since a given date. Agents call this to understand how the store has been autonomously modified. |
+
 ---
 
 ## 13. New REST API Summary
@@ -1344,20 +1508,34 @@ After implementation, the MCP server exposes **19 tools** (11 existing + 8 new):
 
 ---
 
-## 15. What We're NOT Building (Scope Boundaries)
+## 15. What We're Building (Full Scope)
 
-| Out of Scope | Reason |
+Everything described in this PRD is in scope. For clarity, here's the complete feature set:
+
+| Feature | Included | Section |
+|---|---|---|
+| User-defined context schemas (`schema.yaml`) | Yes | 4 |
+| Schema editor UI | Yes | 4.7 |
+| Self-model and introspection | Yes | 5 |
+| Awareness panel UI | Yes | 5.6 |
+| Usage observation and feedback loop | Yes | 6 |
+| Ollama-powered deep analysis (contradictions, suggestions, summarization, ranking) | Yes | 7 |
+| Deterministic fallbacks for all Ollama features | Yes | 7.4 |
+| Self-improvement loop (auto-tag, merge, archive, gap stubs, promote, resolve) | Yes | 8.4 |
+| Self-improvement audit log | Yes | 8.5 |
+| `get_improvements` MCP tool | Yes | 8.6 |
+| Background tick on HTTP server | Yes | 8.3 |
+| File-based cache sharing between HTTP and MCP | Yes | 8.9 |
+
+### Hard Boundaries (truly not building)
+
+| Boundary | Reason |
 |---|---|
 | Cloud LLM APIs (OpenAI, Anthropic) for analysis | Ollama only. Local-first, no API keys, no costs, no data leaving the machine. |
-| Auto-generated CLAUDE.md / .cursorrules | Strong feature, but separate PRD. This PRD focuses on the runtime, not the output. |
-| Cross-device sync | Requires cloud infrastructure. Keep local-first for v1. |
-| SDK npm package (`@opencontext/sdk`) | Separate distribution concern. MCP + REST API is sufficient for v1. |
-| Browser extension | Separate product surface. Not needed for the runtime. |
-| Team/shared schemas | Multi-user adds auth complexity. Single-user first. |
-| Schema marketplace / templates | Community feature. Ship the runtime, templates come later. |
-| Autonomous self-improvement actions | v1 surfaces gaps and suggestions. It doesn't auto-act on them. The agent (or user) decides. |
-| Streaming Ollama responses | All Ollama calls use `stream: false` for simplicity. Streaming can be added later for long summarizations. |
-| Fine-tuning or training on user data | Ollama uses off-the-shelf models. No custom model training. |
+| Streaming Ollama responses | All calls use `stream: false`. Complexity not justified for <2000 token prompts. |
+| Fine-tuning or training on user data | Off-the-shelf Ollama models only. No custom training. |
+| Permanent deletion of user data by self-improvement | Archive only (soft delete). The system never permanently destroys anything. |
+| Autonomous `schema.yaml` modification | System suggests, user decides. Schema changes always require explicit approval. |
 
 ---
 
@@ -1377,6 +1555,16 @@ After implementation, the MCP server exposes **19 tools** (11 existing + 8 new):
 - [ ] All 3 Ollama-powered tools produce valid, useful output via deterministic fallback when Ollama is unavailable
 - [ ] `introspect(deep=true)` enriches gaps and contradictions with natural-language descriptions via Ollama
 - [ ] `query_by_type(ranked=true)` returns entries sorted by semantic relevance via Ollama
+- [ ] Self-improvement loop auto-tags untagged entries with relevant keywords
+- [ ] Self-improvement loop detects and merges near-duplicate entries (>80% overlap)
+- [ ] Self-improvement loop archives entries >180 days old with zero agent reads (soft delete, recoverable)
+- [ ] Self-improvement loop creates gap stubs for queries missed 3+ times
+- [ ] Self-improvement loop promotes untyped entries to matching schema types when Ollama is available
+- [ ] Self-improvement loop auto-resolves contradictions where one entry is >180 days newer
+- [ ] Self-improvement loop suggests new schema types from untyped entry clusters (pending user approval, never auto-applied)
+- [ ] `get_improvements` tool returns accurate audit log of all autonomous actions
+- [ ] All self-improvement actions are logged in `awareness.json` with reversibility flag
+- [ ] `introspect` response includes summary of recent self-improvement actions
 
 ### Non-Functional
 
@@ -1393,16 +1581,17 @@ After implementation, the MCP server exposes **19 tools** (11 existing + 8 new):
 
 ## 17. Future Directions (Post-v1)
 
-These are explicitly out of scope for v1 but inform the architecture:
+These build on the v1 foundation and inform architectural decisions:
 
-1. **Auto-generated instruction files** — produce CLAUDE.md / .cursorrules from the context store + schema, kept in sync automatically
+1. **Auto-generated instruction files** — produce CLAUDE.md / .cursorrules from the context store + schema, kept in sync automatically by the self-improvement loop
 2. **`@opencontext/sdk`** — npm package for agent builders to integrate without MCP, with TypeScript types generated from the user's schema
 3. **Schema templates and community packs** — curated starter schemas for common workflows
 4. **Session lifecycle** — formal `start_session` / `end_session` tools that let agents declare what they're doing and enable richer handoff between sessions
 5. **Hybrid retrieval** — combine Ollama relevance ranking with usefulness scores and read frequency for multi-signal ranking
 6. **Cross-agent session handoff** — agent A ends a session, agent B starts one and gets a briefing of what A did (using `summarize_context` under the hood)
-7. **Self-improvement actions** — the system not only identifies gaps but proposes concrete prompts to agents: "Next time the user discusses testing, ask them about their E2E preferences and save the answer as a preference entry"
+7. **Proactive agent prompting** — the system not only identifies gaps but proposes concrete prompts to agents: "Next time the user discusses testing, ask them about their E2E preferences and save the answer as a preference entry"
 8. **Streaming analysis** — stream Ollama responses for long summarizations to reduce perceived latency
-9. **Pluggable LLM backends** — support Ollama, llama.cpp, LM Studio, or cloud APIs through a unified analyzer interface, letting users choose their preferred local inference engine
-10. **Automatic schema migration** — when `suggest_schema` proposes a new type and the user accepts, automatically reclassify matching untyped entries into the new type using Ollama
-11. **Context embeddings** — generate and cache embeddings for entries using Ollama's embedding models, enabling true vector similarity search alongside keyword search
+9. **Pluggable LLM backends** — support Ollama, llama.cpp, LM Studio, or cloud APIs through a unified analyzer interface
+10. **Context embeddings** — generate and cache embeddings for entries using Ollama's embedding models, enabling true vector similarity search alongside keyword search
+11. **Cross-device sync** — cloud relay for syncing `contexts.json` and `awareness.json` across machines
+12. **Team/shared schemas** — multi-user context stores with role-based access and shared project intelligence
