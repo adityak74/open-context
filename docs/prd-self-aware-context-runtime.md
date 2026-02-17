@@ -1164,7 +1164,340 @@ All optional. Zero config needed for the default behavior.
 
 ---
 
-## 9. Putting It Together: Agent Interaction Flow
+## 9. Control Plane: Human-in-the-Loop Governance
+
+### 9.1 The Problem
+
+The self-improvement loop (section 8) proposes and executes actions autonomously. But some of those actions mutate user data — archiving entries, merging duplicates, resolving contradictions. An autonomous system that modifies a user's context store without consent is a trust violation, even if every action is "reversible."
+
+The system needs a **control plane** — a governance layer that sits between "decide" and "execute," routing actions through human approval when the risk warrants it.
+
+### 9.2 Design: Risk-Based Action Classification
+
+Every self-improvement action is classified by risk level. The risk level determines whether the action auto-executes or enters a pending approval queue.
+
+```
+Self-improvement loop proposes action
+  │
+  ▼
+┌─────────────────────────────────┐
+│         Control Plane           │
+│                                 │
+│  ┌───────────┐  ┌───────────┐  │
+│  │ Classify  │→ │ Route     │  │
+│  │ risk      │  │           │  │
+│  └───────────┘  └─────┬─────┘  │
+│                   ┌───┴────┐   │
+│                   │        │   │
+│                ┌──▼──┐ ┌──▼──┐ │
+│                │Auto │ │Pend │ │
+│                │exec │ │queue│ │
+│                └──┬──┘ └──┬──┘ │
+│                   │       │    │
+└───────────────────┼───────┼────┘
+                    │       │
+                    ▼       ▼
+              Executed   Awaiting
+              (logged)   approval
+                         (UI / MCP / REST)
+```
+
+### 9.3 Risk Levels
+
+| Risk Level | What It Means | Auto-Execute? | Examples |
+|---|---|---|---|
+| **low** | Additive only. No data modified or removed. Fully non-destructive. | **Yes** — executes immediately, logged in audit. | Auto-tag, create gap stubs, suggest schema (write to pending suggestions) |
+| **medium** | Modifies existing data but is reversible. Changes entry metadata or merges content. | **No** — enters pending queue. User must approve. | Promote to type (sets `contextType`), merge duplicates (combines entries) |
+| **high** | Removes data from active view or resolves conflicts by choosing one entry over another. | **No** — enters pending queue with prominent UI warning. | Archive stale entries, resolve contradictions (archive losing entry) |
+
+### 9.4 Action-to-Risk Mapping
+
+| Action | Risk | Reason | Auto-Execute? |
+|---|---|---|---|
+| **Auto-tag** | Low | Only adds tags, never removes. Non-destructive metadata. | Yes |
+| **Create gap stubs** | Low | Adds new entries, doesn't touch existing ones. | Yes |
+| **Suggest schema** | Low | Writes suggestion to `awareness.json`, never touches `schema.yaml`. | Yes |
+| **Promote to type** | Medium | Sets `contextType` field on existing entries. Reversible but changes how entries appear in queries. | No — pending |
+| **Merge duplicates** | Medium | Combines two entries into one, soft-deletes the other. Content preserved but structure changes. | No — pending |
+| **Archive stale** | High | Removes entries from active search results. Recoverable but user may not notice missing data. | No — pending |
+| **Resolve contradictions** | High | Archives one entry in favor of another. Involves a judgment call about which entry is "correct." | No — pending |
+
+### 9.5 The Pending Actions Queue
+
+Non-auto-executed actions are written to `awareness.json` under a `pendingActions` key:
+
+```json
+{
+  "pendingActions": [
+    {
+      "id": "pa-1",
+      "createdAt": "2026-02-17T15:30:00Z",
+      "action": "archive_stale",
+      "risk": "high",
+      "description": "Archive 2 entries older than 180 days with zero reads: note-3, note-7",
+      "entriesAffected": ["note-3", "note-7"],
+      "reasoning": "These entries haven't been read by any agent in 6 months and are >180 days old.",
+      "status": "pending",
+      "expiresAt": "2026-02-24T15:30:00Z"
+    },
+    {
+      "id": "pa-2",
+      "createdAt": "2026-02-17T15:30:02Z",
+      "action": "merge_duplicates",
+      "risk": "medium",
+      "description": "Merge entries dec-12 and dec-15 (87% content overlap, both type 'decision')",
+      "entriesAffected": ["dec-12", "dec-15"],
+      "preview": {
+        "merged_content": "Use PostgreSQL for JSON column support and complex queries",
+        "kept_entry": "dec-15",
+        "archived_entry": "dec-12"
+      },
+      "reasoning": "Both entries describe the same PostgreSQL decision with near-identical wording.",
+      "status": "pending",
+      "expiresAt": "2026-02-24T15:30:02Z"
+    },
+    {
+      "id": "pa-3",
+      "createdAt": "2026-02-17T15:30:05Z",
+      "action": "resolve_contradictions",
+      "risk": "high",
+      "description": "Entry pref-12 ('prefer composition') contradicts dec-47 ('class inheritance for repos'). dec-47 is 8 months newer.",
+      "entriesAffected": ["pref-12", "dec-47"],
+      "preview": {
+        "keep": "dec-47",
+        "archive": "pref-12",
+        "explanation": "dec-47 is a specific architectural decision made 8 months after the general preference in pref-12. The newer, specific decision likely reflects evolved thinking."
+      },
+      "reasoning": "Age difference >180 days. Newer entry is a concrete decision; older is a general preference.",
+      "status": "pending",
+      "expiresAt": "2026-02-24T15:30:05Z"
+    }
+  ]
+}
+```
+
+### 9.6 Approval Workflow
+
+Pending actions can be approved or dismissed through three channels:
+
+**1. UI (AwarenessPanel)**:
+- Pending actions appear as cards with approve/dismiss buttons
+- High-risk actions shown with a warning banner
+- Each card shows: what will happen, which entries are affected, the reasoning, and a preview of the result
+- Batch approve/dismiss for multiple actions of the same type
+- "Approve all low-risk" and "Approve all medium-risk" bulk actions
+
+**2. MCP Tool: `review_pending_actions`**:
+
+```
+Tool: review_pending_actions
+Arguments: (none)
+Returns: List of pending actions awaiting approval
+
+Example response:
+"There are 3 pending actions awaiting your approval:
+
+ 1. [HIGH] Archive 2 stale entries (note-3, note-7) — 180+ days old, never read
+ 2. [MEDIUM] Merge duplicate entries dec-12 and dec-15 (87% overlap)
+ 3. [HIGH] Resolve contradiction: archive pref-12 in favor of dec-47
+
+ Use approve_action or dismiss_action with the action ID to proceed."
+```
+
+**3. MCP Tool: `approve_action` / `dismiss_action`**:
+
+```
+Tool: approve_action
+Arguments:
+  action_id: string       — ID of the pending action (e.g. "pa-1")
+  action_ids?: string[]   — batch approve multiple actions
+Returns: Confirmation of executed action
+
+Tool: dismiss_action
+Arguments:
+  action_id: string       — ID to dismiss
+  action_ids?: string[]   — batch dismiss
+  reason?: string         — optional: why the user rejected this
+Returns: Confirmation, action removed from queue
+```
+
+When a user dismisses an action with a reason, the system learns: it records the dismissal and avoids proposing similar actions in the future. For example, if the user dismisses "archive entry note-3" with reason "I still need this," the system adds note-3 to a protection list and won't propose archiving it again.
+
+**4. REST API**:
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/pending-actions` | `GET` | List all pending actions |
+| `/api/pending-actions/:id/approve` | `POST` | Approve and execute a pending action |
+| `/api/pending-actions/:id/dismiss` | `POST` | Dismiss a pending action, optionally with reason |
+| `/api/pending-actions/bulk` | `POST` | Batch approve/dismiss: `{ action_ids: [...], decision: "approve" | "dismiss" }` |
+
+### 9.7 Expiration
+
+Pending actions expire after 7 days (configurable via `OPENCONTEXT_PENDING_TTL`). Expired actions are auto-dismissed and logged as expired — not auto-approved. The system can re-propose the same action in a future tick if conditions still warrant it.
+
+### 9.8 How This Changes the Self-Improvement Loop
+
+The `selfImprovementTick` from section 8.3 now routes through the control plane:
+
+```typescript
+// Phase C changes from direct execution to routing:
+
+// ── Phase C: Route through control plane ──
+
+for (const action of actions) {
+  const risk = classifyRisk(action)
+
+  if (risk === 'low') {
+    // Auto-execute, log to audit
+    await executeImprovement(action, store, schema, observer)
+    observer.logSelfImprovement({ ...action, autoExecuted: true })
+  } else {
+    // Queue for human approval
+    await controlPlane.enqueue({
+      action,
+      risk,
+      description: describeAction(action),
+      reasoning: explainReasoning(action, selfModel, summary),
+      preview: generatePreview(action, store),
+      expiresAt: addDays(now(), 7),
+    })
+  }
+}
+```
+
+The observe-decide phases remain identical. Only the act phase changes — instead of `executeImprovement` for everything, low-risk actions execute immediately while medium/high-risk actions enter the pending queue.
+
+### 9.9 Protection Lists
+
+When users dismiss actions, the system builds a **protection list** — entries and patterns that should not be targeted by self-improvement:
+
+```json
+{
+  "protections": [
+    {
+      "entryId": "note-3",
+      "protectedFrom": ["archive_stale"],
+      "reason": "User dismissed: 'I still need this'",
+      "createdAt": "2026-02-17T16:00:00Z"
+    },
+    {
+      "pattern": "merge_duplicates",
+      "scope": { "contextType": "preference" },
+      "reason": "User dismissed 3 preference merges — may want similar-but-distinct preferences",
+      "createdAt": "2026-02-18T10:00:00Z"
+    }
+  ]
+}
+```
+
+The self-improvement loop checks the protection list before proposing actions. If an entry is protected from a specific action type, that action is skipped entirely — no re-proposal, no pending queue entry.
+
+**Auto-learned protections**: if a user dismisses 3+ actions of the same type for the same `contextType`, the system infers a pattern and creates a scope-based protection. E.g., dismissing 3 preference merges → system learns "user wants similar preferences kept separate" and stops proposing preference merges.
+
+### 9.10 Configuration and Overrides
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `OPENCONTEXT_PENDING_TTL` | `604800000` (7 days) | How long pending actions wait before auto-expiring |
+| `OPENCONTEXT_AUTO_APPROVE_LOW` | `true` | Auto-execute low-risk actions. Set to `false` to require approval for everything. |
+| `OPENCONTEXT_AUTO_APPROVE_MEDIUM` | `false` | Auto-execute medium-risk actions. Default off — requires approval. |
+| `OPENCONTEXT_AUTO_APPROVE_HIGH` | `false` | Auto-execute high-risk actions. **Strongly discouraged.** Default off. |
+
+A paranoid user can set `OPENCONTEXT_AUTO_APPROVE_LOW=false` to require approval for every single action, including auto-tagging. The system still proposes improvements but never touches anything without consent.
+
+Conversely, a power user who trusts the system can set `OPENCONTEXT_AUTO_APPROVE_MEDIUM=true` to auto-approve merges and promotions, only stopping for high-risk archives and contradiction resolution.
+
+### 9.11 Implementation: `src/mcp/control-plane.ts` (new file)
+
+```typescript
+export interface PendingAction {
+  id: string
+  createdAt: string
+  expiresAt: string
+  action: ImprovementAction
+  risk: 'low' | 'medium' | 'high'
+  description: string
+  reasoning: string
+  preview: Record<string, unknown>
+  status: 'pending' | 'approved' | 'dismissed' | 'expired'
+  dismissReason?: string
+}
+
+export interface Protection {
+  entryId?: string
+  pattern?: string
+  scope?: Record<string, string>
+  protectedFrom: string[]
+  reason: string
+  createdAt: string
+}
+
+export function createControlPlane(storePath?: string): {
+  // Queue management
+  enqueue(action: Omit<PendingAction, 'id' | 'status'>): PendingAction
+  listPending(): PendingAction[]
+  approve(id: string): { executed: boolean; result: string }
+  dismiss(id: string, reason?: string): void
+  bulkApprove(ids: string[]): Array<{ id: string; executed: boolean }>
+  bulkDismiss(ids: string[], reason?: string): void
+  expireStale(): number  // returns count of expired actions
+
+  // Protection list
+  isProtected(entryId: string, actionType: string): boolean
+  addProtection(protection: Omit<Protection, 'createdAt'>): void
+  listProtections(): Protection[]
+  removeProtection(entryId: string, actionType: string): void
+
+  // Risk classification
+  classifyRisk(action: ImprovementAction): 'low' | 'medium' | 'high'
+  shouldAutoExecute(action: ImprovementAction): boolean
+}
+```
+
+**Storage**: pending actions and protections are stored in `awareness.json` under `pendingActions` and `protections` keys. Same file, same read-modify-write pattern as the rest of the awareness data.
+
+### 9.12 How Agents Experience the Control Plane
+
+Agents interact with the control plane naturally through MCP tools:
+
+```
+Agent                          OpenContext
+  │                                │
+  │  introspect()                  │
+  │  ─────────────────────────►    │
+  │  ◄─────────────────────────    │  "...3 pending actions await
+  │                                │   your approval. Use
+  │                                │   review_pending_actions."
+  │                                │
+  │  review_pending_actions()      │
+  │  ─────────────────────────►    │
+  │  ◄─────────────────────────    │  Returns 3 actions with
+  │                                │  descriptions and reasoning
+  │                                │
+  │  (Agent presents to user       │
+  │   or makes a judgment call)    │
+  │                                │
+  │  approve_action("pa-2")        │
+  │  ─────────────────────────►    │
+  │                                │  Execute merge, log to audit
+  │  ◄─────────────────────────    │  "Merged dec-12 into dec-15"
+  │                                │
+  │  dismiss_action("pa-3",        │
+  │    reason: "Both are valid     │
+  │    in different contexts")     │
+  │  ─────────────────────────►    │
+  │                                │  Remove from queue, add to
+  │                                │  protection list
+  │  ◄─────────────────────────    │  "Dismissed. Won't re-propose
+  │                                │   this contradiction resolution."
+```
+
+This means Claude Code (or any agent) can act as the human's delegate for control plane decisions — the agent can review pending actions and make approval recommendations, but the user retains final authority through the MCP tool interface.
+
+---
+
+## 10. Putting It Together: Agent Interaction Flow
 
 ### Session Start (Agent calls introspect)
 
@@ -1278,7 +1611,7 @@ Agent / UI                     OpenContext                    Ollama
 
 ---
 
-## 10. Storage Schema Evolution
+## 11. Storage Schema Evolution
 
 ### Current: `~/.opencontext/contexts.json`
 
@@ -1353,7 +1686,7 @@ User-created. See section 4.1 for format.
 
 ---
 
-## 11. Implementation Plan
+## 12. Implementation Plan
 
 ### Phase 1: User-Defined Schemas (Foundation)
 
@@ -1429,6 +1762,20 @@ User-created. See section 4.1 for format.
 
 **Tests**: Each improvement action in isolation (auto-tag, merge, archive, gap stub, promote, resolve). Full tick with mocked store. Verify archived entries excluded from search. Verify gap stubs auto-cleanup. Verify audit log accuracy. Verify MCP server reads improvements via `awareness.json`.
 
+### Phase 6: Control Plane (Human-in-the-Loop Governance)
+
+**Goal**: All medium/high-risk self-improvement actions route through a pending approval queue instead of executing immediately. Users approve or dismiss via UI, MCP tools, or REST API. Dismissed actions feed a protection list that prevents re-proposal.
+
+| Step | File | Change | Effort |
+|------|------|--------|--------|
+| 6a | `src/mcp/control-plane.ts` | New file: `createControlPlane()`, `PendingAction` and `Protection` types, risk classification, enqueue/approve/dismiss/expire logic, protection list management | M |
+| 6b | `src/mcp/improver.ts` | Modify `selfImprovementTick()` Phase C to route through control plane instead of direct execution | S |
+| 6c | `src/mcp/server.ts` | Register `review_pending_actions`, `approve_action`, `dismiss_action` tools | S |
+| 6d | `src/server.ts` | Add `GET /api/pending-actions`, `POST .../approve`, `POST .../dismiss`, `POST .../bulk` endpoints. Add `expireStale()` call to background tick. | S |
+| 6e | `ui/src/components/AwarenessPanel.tsx` | Add pending actions cards with approve/dismiss buttons, risk-level badges, batch actions, protection list viewer | M |
+
+**Tests**: Risk classification for each action type. Enqueue/approve/dismiss lifecycle. Expiration after TTL. Protection list blocking re-proposals. Auto-learned pattern protections after 3+ dismissals. Batch operations. Config overrides (`AUTO_APPROVE_LOW=false` puts everything in queue).
+
 ### Phase Summary
 
 | Phase | New Files | Modified Files | Estimated New Lines | Dependencies |
@@ -1438,13 +1785,14 @@ User-created. See section 4.1 for format.
 | 3 | 1 (`observer.ts`) | 3 (`store.ts`, `server.ts`, `awareness.ts`) | ~200 | Phase 2 (awareness consumes observer data) |
 | 4 | 1 (`analyzer.ts`) | 4 (`server.ts` MCP, `server.ts` REST, `awareness.ts`, `AwarenessPanel.tsx`) | ~350 | Phases 1-3 + existing `ollama` npm package (already a dependency) |
 | 5 | 1 (`improver.ts`) | 5 (`server.ts`, `awareness.ts`, `observer.ts`, `store.ts`, `server.ts` MCP, `AwarenessPanel.tsx`) | ~400 | Phases 1-4 (orchestrates all prior components) |
-| **Total** | **7 new files** | **~7 existing files modified** | **~1700 lines** | **0 new npm dependencies** (reuses existing `ollama` package) |
+| 6 | 1 (`control-plane.ts`) | 4 (`improver.ts`, `server.ts` MCP, `server.ts` REST, `AwarenessPanel.tsx`) | ~350 | Phase 5 (governs self-improvement actions) |
+| **Total** | **8 new files** | **~8 existing files modified** | **~2050 lines** | **0 new npm dependencies** (reuses existing `ollama` package) |
 
 ---
 
-## 12. New MCP Tool Summary
+## 13. New MCP Tool Summary
 
-After implementation, the MCP server exposes **20 tools** (11 existing + 9 new):
+After implementation, the MCP server exposes **23 tools** (11 existing + 12 new):
 
 ### Existing (unchanged)
 
@@ -1486,9 +1834,17 @@ After implementation, the MCP server exposes **20 tools** (11 existing + 9 new):
 |------|----------|-------------|
 | `get_improvements` | Self-Improvement | Returns list of autonomous actions taken (auto-tags, archives, gap stubs, schema suggestions) since a given date. Agents call this to understand how the store has been autonomously modified. |
 
+### New (Section 9: Control Plane)
+
+| Tool | Category | Description |
+|------|----------|-------------|
+| `review_pending_actions` | Control Plane | List all pending actions awaiting human approval, with risk levels and reasoning. |
+| `approve_action` | Control Plane | Approve and execute a pending action by ID. Supports batch via `action_ids`. |
+| `dismiss_action` | Control Plane | Dismiss a pending action by ID with optional reason. Dismissed actions feed the protection list. |
+
 ---
 
-## 13. New REST API Summary
+## 14. New REST API Summary
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
@@ -1496,10 +1852,14 @@ After implementation, the MCP server exposes **20 tools** (11 existing + 9 new):
 | `/api/schema` | `PUT` | Updates schema definition |
 | `/api/awareness` | `GET` | Returns computed self-model |
 | `/api/analyze` | `POST` | Run Ollama analysis: contradictions, schema suggestions, or summarization. Returns `source: "ollama" \| "deterministic"` to indicate which mode was used. |
+| `/api/pending-actions` | `GET` | List all pending control plane actions |
+| `/api/pending-actions/:id/approve` | `POST` | Approve and execute a pending action |
+| `/api/pending-actions/:id/dismiss` | `POST` | Dismiss a pending action (optional `reason` in body) |
+| `/api/pending-actions/bulk` | `POST` | Batch approve/dismiss: `{ action_ids, decision }` |
 
 ---
 
-## 14. New UI Routes Summary
+## 15. New UI Routes Summary
 
 | Path | Component | Description |
 |------|-----------|-------------|
@@ -1508,7 +1868,7 @@ After implementation, the MCP server exposes **20 tools** (11 existing + 9 new):
 
 ---
 
-## 15. What We're Building (Full Scope)
+## 16. What We're Building (Full Scope)
 
 Everything described in this PRD is in scope. For clarity, here's the complete feature set:
 
@@ -1539,7 +1899,7 @@ Everything described in this PRD is in scope. For clarity, here's the complete f
 
 ---
 
-## 16. Success Criteria
+## 17. Success Criteria
 
 ### Functional
 
@@ -1579,7 +1939,7 @@ Everything described in this PRD is in scope. For clarity, here's the complete f
 
 ---
 
-## 17. Future Directions (Post-v1)
+## 18. Future Directions (Post-v1)
 
 These build on the v1 foundation and inform architectural decisions:
 
