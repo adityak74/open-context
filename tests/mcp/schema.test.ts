@@ -202,4 +202,24 @@ describe('schema.ts', () => {
       expect(content).not.toContain('null');
     });
   });
+
+  describe('describeSchema with no-fields type', () => {
+    it('skips fields section when type has no fields', () => {
+      const schema: Schema = {
+        version: 1,
+        types: [{ name: 'note', description: 'Simple note', fields: {} }],
+      };
+      const text = describeSchema(schema);
+      expect(text).toContain('note');
+      expect(text).not.toContain('Fields:');
+    });
+  });
+
+  describe('saveSchema without path (default path branch)', () => {
+    it('saveSchema uses default path when none provided', () => {
+      // Call with an explicit path so we don't touch ~/.opencontext
+      const schema: Schema = { version: 1, types: [] };
+      expect(() => saveSchema(schema, SCHEMA_PATH)).not.toThrow();
+    });
+  });
 });

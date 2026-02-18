@@ -65,6 +65,33 @@ describe('control-plane.ts', () => {
     it('does not auto-execute high-risk by default', () => {
       expect(cp.shouldAutoExecute({ type: 'archive_stale' })).toBe(false);
     });
+
+    it('env var OPENCONTEXT_AUTO_APPROVE_LOW=false disables auto-execute for low-risk', () => {
+      process.env.OPENCONTEXT_AUTO_APPROVE_LOW = 'false';
+      try {
+        expect(cp.shouldAutoExecute({ type: 'auto_tag' })).toBe(false);
+      } finally {
+        delete process.env.OPENCONTEXT_AUTO_APPROVE_LOW;
+      }
+    });
+
+    it('env var OPENCONTEXT_AUTO_APPROVE_HIGH=true enables auto-execute for high-risk', () => {
+      process.env.OPENCONTEXT_AUTO_APPROVE_HIGH = 'true';
+      try {
+        expect(cp.shouldAutoExecute({ type: 'archive_stale' })).toBe(true);
+      } finally {
+        delete process.env.OPENCONTEXT_AUTO_APPROVE_HIGH;
+      }
+    });
+
+    it('env var OPENCONTEXT_AUTO_APPROVE_LOW=0 disables auto-execute', () => {
+      process.env.OPENCONTEXT_AUTO_APPROVE_LOW = '0';
+      try {
+        expect(cp.shouldAutoExecute({ type: 'auto_tag' })).toBe(false);
+      } finally {
+        delete process.env.OPENCONTEXT_AUTO_APPROVE_LOW;
+      }
+    });
   });
 
   describe('enqueue and listPending', () => {
@@ -136,6 +163,34 @@ describe('control-plane.ts', () => {
       cp.dismiss(action.id, 'I still need this');
       const protections = cp.listProtections();
       expect(protections.some((p) => p.entryId === 'entry-1')).toBe(true);
+    });
+
+    it('auto-learns pattern protection after 3+ dismissals of same type', () => {
+      // Create and dismiss 3 archive_stale actions with entries and reason
+      for (let i = 0; i < 3; i++) {
+        const action = cp.enqueue({
+          ...makePendingArgs('archive_stale', 'high'),
+          action: { type: 'archive_stale', entries: [{ id: `entry-${i}` }] } as ImprovementAction,
+        });
+        cp.dismiss(action.id, 'Not needed');
+      }
+      // After 3 dismissals, a pattern protection should be auto-added
+      const protections = cp.listProtections();
+      expect(protections.some((p) => p.pattern === 'archive_stale' && !p.entryId)).toBe(true);
+    });
+
+    it('does not add duplicate pattern protection', () => {
+      // Dismiss 3 times; then dismiss a 4th — should not add a second pattern protection
+      for (let i = 0; i < 4; i++) {
+        const action = cp.enqueue({
+          ...makePendingArgs('archive_stale', 'high'),
+          action: { type: 'archive_stale', entries: [{ id: `ent-${i}` }] } as ImprovementAction,
+        });
+        cp.dismiss(action.id, 'Still no');
+      }
+      const protections = cp.listProtections();
+      const patternCount = protections.filter((p) => p.pattern === 'archive_stale' && !p.entryId).length;
+      expect(patternCount).toBe(1);
     });
   });
 

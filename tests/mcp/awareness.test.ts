@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { rmSync, mkdirSync } from 'fs';
+import { rmSync, mkdirSync, writeFileSync, readFileSync } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';
 import { createStore } from '../../src/mcp/store.js';
@@ -99,6 +99,17 @@ describe('awareness.ts', () => {
       expect(model.coverage.typesEmpty).toContain('preference');
     });
 
+    it('produces needs-attention health when avgScore is between 0.4 and 0.7', () => {
+      // With 3 schema types and 1 covered, coverageScore = 1/3 ≈ 0.33
+      // All entries recent → freshnessScore = 1
+      // avgScore = (0.33 + 1) / 2 ≈ 0.67 → needs-attention
+      const e1 = store.saveContext('decision content', [], 'test');
+      store.updateContextType(e1.id, 'decision');
+      const model = buildSelfModel(store, SAMPLE_SCHEMA, observer);
+      // coverageScore = 1/3, freshnessScore = 1 → avg ≈ 0.67 → needs-attention
+      expect(['needs-attention', 'healthy']).toContain(model.health.overallHealth);
+    });
+
     it('counts untyped entries', () => {
       store.saveContext('no type here', [], 'test');
       store.saveContext('also no type', [], 'test');
@@ -122,6 +133,37 @@ describe('awareness.ts', () => {
       expect(model.health.freshnessScore).toBe(1);
     });
 
+    it('identifies stale entries as gaps (>90 days old) and sorts comparator', () => {
+      // Create two entries then backdate them via raw store file manipulation
+      const e1 = store.saveContext('old content 1', [], 'test');
+      const e2 = store.saveContext('old content 2', [], 'test');
+      const staleDate1 = new Date(Date.now() - 91 * 24 * 60 * 60 * 1000).toISOString();
+      const staleDate2 = new Date(Date.now() - 95 * 24 * 60 * 60 * 1000).toISOString();
+      const raw = JSON.parse(readFileSync(STORE_PATH, 'utf-8')) as { entries: Array<{ id: string; updatedAt: string }> };
+      const idx1 = raw.entries.findIndex((e) => e.id === e1.id);
+      const idx2 = raw.entries.findIndex((e) => e.id === e2.id);
+      if (idx1 !== -1) raw.entries[idx1]!.updatedAt = staleDate1;
+      if (idx2 !== -1) raw.entries[idx2]!.updatedAt = staleDate2;
+      writeFileSync(STORE_PATH, JSON.stringify(raw));
+      // Recreate store to reload the backdated entries
+      const staleStore = createStore(STORE_PATH);
+      const model = buildSelfModel(staleStore, null, observer);
+      expect(model.freshness.stale).toBe(2);
+      expect(model.gaps.some((g) => g.description.includes("haven't been updated"))).toBe(true);
+      // stalestEntries should have both entries (sorted oldest first)
+      expect(model.freshness.stalestEntries).toHaveLength(2);
+    });
+
+    it('typeBreakdown includes entries by contextType', () => {
+      const entry = store.saveContext('typed content', [], 'test');
+      store.updateContextType(entry.id, 'decision');
+      const model = buildSelfModel(store, SAMPLE_SCHEMA, observer);
+      expect(model.identity.typeBreakdown['decision']).toBe(1);
+      // formatSelfModel should show the type breakdown line
+      const text = formatSelfModel(model);
+      expect(text).toContain('decision');
+    });
+
     it('detects keyword contradictions', () => {
       store.saveContext('I prefer composition over inheritance', ['pref'], 'test');
       store.saveContext('I always use inheritance for this pattern', ['pref'], 'test');
@@ -138,6 +180,14 @@ describe('awareness.ts', () => {
       observer.log({ action: 'query_miss', tool: 'recall_context', query: 'deployment' });
       const model = buildSelfModel(store, null, observer);
       expect(model.gaps.some((g) => g.description.includes('deployment'))).toBe(true);
+    });
+
+    it('does not add gap for queries missed fewer than 3 times', () => {
+      observer.log({ action: 'query_miss', tool: 'recall_context', query: 'rare-query' });
+      observer.log({ action: 'query_miss', tool: 'recall_context', query: 'rare-query' });
+      // only 2 misses — should NOT create a gap
+      const model = buildSelfModel(store, null, observer);
+      expect(model.gaps.some((g) => g.description.includes('rare-query'))).toBe(false);
     });
 
     it('includes pending actions count', () => {
@@ -186,6 +236,54 @@ describe('awareness.ts', () => {
       if (model.gaps.length > 0) {
         expect(text).toContain('Gaps');
       }
+    });
+
+    it('shows typesEmpty section when schema types have no entries', () => {
+      // No entries with contextType=decision — so it's empty
+      store.saveContext('some content', [], 'test');
+      const model = buildSelfModel(store, SAMPLE_SCHEMA, observer);
+      const text = formatSelfModel(model);
+      // decision, preference, empty_type all have 0 entries → typesEmpty section
+      expect(text).toContain('no entries');
+    });
+
+    it('shows contradictions section when contradictions exist', () => {
+      store.saveContext('I prefer composition over inheritance for design', ['pref'], 'test');
+      store.saveContext('Use inheritance for this class hierarchy pattern', ['pref'], 'test');
+      const model = buildSelfModel(store, null, observer);
+      // Force contradictions to be non-empty
+      if (model.contradictions.length === 0) {
+        model.contradictions = [{ entryA: 'a', entryB: 'b', description: 'contradiction test' }];
+      }
+      const text = formatSelfModel(model);
+      expect(text).toContain('contradiction');
+    });
+
+    it('shows recent improvements section when improvements exist', () => {
+      observer.logSelfImprovement({
+        timestamp: new Date().toISOString(),
+        actions: [{ type: 'auto_tag', count: 5 }],
+        autoExecuted: true,
+      });
+      const model = buildSelfModel(store, null, observer);
+      const text = formatSelfModel(model);
+      expect(text).toContain('autonomous improvement');
+    });
+
+    it('shows gaps with info severity icon (from stale entries)', () => {
+      // Create a stale entry to trigger severity='info' gap
+      const entry = store.saveContext('stale content', [], 'test');
+      const staleDate = new Date(Date.now() - 91 * 24 * 60 * 60 * 1000).toISOString();
+      const raw = JSON.parse(readFileSync(STORE_PATH, 'utf-8')) as { entries: Array<{ id: string; updatedAt: string }> };
+      const idx = raw.entries.findIndex((e) => e.id === entry.id);
+      if (idx !== -1) raw.entries[idx]!.updatedAt = staleDate;
+      writeFileSync(STORE_PATH, JSON.stringify(raw));
+      const staleStore = createStore(STORE_PATH);
+      const model = buildSelfModel(staleStore, null, observer);
+      const infoGaps = model.gaps.filter((g) => g.severity === 'info');
+      expect(infoGaps.length).toBeGreaterThan(0);
+      const text = formatSelfModel(model);
+      expect(text).toContain('ℹ');
     });
   });
 

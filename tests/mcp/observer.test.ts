@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { rmSync, mkdirSync } from 'fs';
+import { rmSync, mkdirSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';
 import { createObserver } from '../../src/mcp/observer.js';
@@ -129,5 +129,90 @@ describe('observer.ts', () => {
   it('filePath is accessible', () => {
     const obs = createObserver(OBS_PATH);
     expect(obs.filePath).toBe(OBS_PATH);
+  });
+
+  it('loadRaw returns empty state when file contains invalid JSON', () => {
+    mkdirSync(TEST_DIR, { recursive: true });
+    writeFileSync(OBS_PATH, 'this is not valid json!!!', 'utf-8');
+    const obs = createObserver(OBS_PATH);
+    const raw = obs.loadRaw();
+    expect(raw.events).toEqual([]);
+    expect(raw.improvements).toEqual([]);
+  });
+
+  it('loadRaw fills missing fields from partial JSON (null-coalescing branches)', () => {
+    mkdirSync(TEST_DIR, { recursive: true });
+    // Write a partial file without events, improvements, etc.
+    writeFileSync(OBS_PATH, JSON.stringify({ summary: null }), 'utf-8');
+    const obs = createObserver(OBS_PATH);
+    const raw = obs.loadRaw();
+    expect(raw.events).toEqual([]);
+    expect(raw.improvements).toEqual([]);
+    expect(raw.pendingActions).toEqual([]);
+    expect(raw.protections).toEqual([]);
+  });
+
+  it('query_miss without query field does not crash', () => {
+    const obs = createObserver(OBS_PATH);
+    // Log a query_miss without a query property
+    obs.log({ action: 'query_miss', tool: 'test' } as never);
+    const summary = obs.getSummary();
+    expect(summary.totalMisses).toBe(1);
+    // missedQueries should remain empty since no query was provided
+    expect(summary.missedQueries).toHaveLength(0);
+  });
+
+  it('persistRaw creates parent directory if it does not exist', () => {
+    const deepPath = join(TEST_DIR, 'nested', 'subdir', 'awareness.json');
+    const obs = createObserver(deepPath);
+    // This should create the nested directory
+    expect(() => obs.persistRaw(obs.loadRaw())).not.toThrow();
+  });
+
+  it('trims events when they exceed MAX_EVENTS (1000)', () => {
+    const obs = createObserver(OBS_PATH);
+    // Manually inject >1000 events via persistRaw
+    const raw = obs.loadRaw();
+    raw.events = Array.from({ length: 1005 }, (_, i) => ({
+      timestamp: new Date().toISOString(),
+      action: 'read' as const,
+      tool: 'test',
+      contextType: `type-${i}`,
+    }));
+    obs.persistRaw(raw);
+    // Logging one more event triggers the rotation check in log()
+    obs.log({ action: 'write', tool: 'trigger', entryIds: [] });
+    const reloaded = obs.loadRaw();
+    // Should have been trimmed to TRIM_TO (500) + 1
+    expect(reloaded.events.length).toBeLessThanOrEqual(502);
+  });
+
+  it('logSelfImprovement trims improvements when they exceed 200', () => {
+    const obs = createObserver(OBS_PATH);
+    // Inject 201 improvement records
+    const raw = obs.loadRaw();
+    raw.improvements = Array.from({ length: 201 }, (_, i) => ({
+      timestamp: new Date(Date.now() - i * 1000).toISOString(),
+      actions: [{ type: 'auto_tag', count: 1 }],
+    }));
+    obs.persistRaw(raw);
+    // One more logSelfImprovement triggers the trim
+    obs.logSelfImprovement({ timestamp: new Date().toISOString(), actions: [{ type: 'auto_tag', count: 1 }] });
+    const after = obs.loadRaw();
+    expect(after.improvements.length).toBeLessThanOrEqual(101);
+  });
+
+  it('rotateIfNeeded trims when events exceed MAX_EVENTS', () => {
+    const obs = createObserver(OBS_PATH);
+    const raw = obs.loadRaw();
+    raw.events = Array.from({ length: 1001 }, () => ({
+      timestamp: new Date().toISOString(),
+      action: 'read' as const,
+      tool: 'test',
+    }));
+    obs.persistRaw(raw);
+    obs.rotateIfNeeded();
+    const reloaded = obs.loadRaw();
+    expect(reloaded.events.length).toBeLessThanOrEqual(500);
   });
 });
