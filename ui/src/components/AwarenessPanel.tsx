@@ -3,7 +3,6 @@ import { RefreshCw, AlertTriangle, Info, CheckCircle, XCircle, Zap } from 'lucid
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
-import { Separator } from '@/components/ui/separator';
 
 interface Gap {
   description: string;
