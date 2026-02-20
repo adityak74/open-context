@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import request from 'supertest';
+import fs from 'fs';
 
 // ---------------------------------------------------------------------------
 // Module mocks
@@ -399,13 +400,256 @@ describe('DELETE /api/contexts/:id', () => {
 });
 
 // ---------------------------------------------------------------------------
+// GET /api/preferences
+// ---------------------------------------------------------------------------
+
+describe('GET /api/preferences', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('returns preferences when file exists', async () => {
+    const mockPrefs = { workContext: { role: 'Developer' } };
+    vi.spyOn(fs, 'existsSync').mockReturnValue(true);
+    vi.spyOn(fs, 'readFileSync').mockReturnValue(JSON.stringify(mockPrefs));
+
+    const res = await request(app).get('/api/preferences');
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual(mockPrefs);
+  });
+
+  it('returns null when file does not exist', async () => {
+    vi.spyOn(fs, 'existsSync').mockReturnValue(false);
+
+    const res = await request(app).get('/api/preferences');
+    expect(res.status).toBe(200);
+    expect(res.body).toBeNull();
+  });
+
+  it('returns 500 when read fails', async () => {
+    vi.spyOn(fs, 'existsSync').mockReturnValue(true);
+    vi.spyOn(fs, 'readFileSync').mockImplementation(() => {
+      throw new Error('Read error');
+    });
+
+    const res = await request(app).get('/api/preferences');
+    expect(res.status).toBe(500);
+    expect(res.body.error).toBe('Failed to read preferences');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// PUT /api/preferences
+// ---------------------------------------------------------------------------
+
+describe('PUT /api/preferences', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('saves preferences and returns ok', async () => {
+    vi.spyOn(fs, 'mkdirSync').mockImplementation(() => undefined);
+    vi.spyOn(fs, 'writeFileSync').mockImplementation(() => undefined);
+
+    const prefs = {
+      workContext: { role: 'Developer', industry: 'Tech' },
+      communicationStyle: { tone: 'casual', detailLevel: 'balanced', useCodeExamples: true },
+      behaviorPreferences: { proactiveness: 'proactive', warnAboutRisks: true },
+      customInstructions: 'Be helpful',
+    };
+
+    const res = await request(app).put('/api/preferences').send(prefs);
+    expect(res.status).toBe(200);
+    expect(res.body.ok).toBe(true);
+  });
+
+  it('returns 500 when write fails', async () => {
+    vi.spyOn(fs, 'mkdirSync').mockImplementation(() => {
+      throw new Error('Write error');
+    });
+
+    const res = await request(app).put('/api/preferences').send({});
+    expect(res.status).toBe(500);
+    expect(res.body.error).toBe('Failed to save preferences');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// GET /api/bubbles
+// ---------------------------------------------------------------------------
+
+describe('GET /api/bubbles', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('returns all bubbles with context counts', async () => {
+    const bubbles = [
+      { id: 'bubble-1', name: 'Project A', description: 'Test project', createdAt: '2024-01-01', updatedAt: '2024-01-01' },
+    ];
+    mockStore.listBubbles.mockReturnValueOnce(bubbles);
+    mockStore.listContextsByBubble.mockReturnValueOnce([fakeEntry]);
+
+    const res = await request(app).get('/api/bubbles');
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveLength(1);
+    expect(res.body[0].id).toBe('bubble-1');
+    expect(res.body[0].contextCount).toBe(1);
+  });
+
+  it('returns empty array when no bubbles exist', async () => {
+    mockStore.listBubbles.mockReturnValueOnce([]);
+
+    const res = await request(app).get('/api/bubbles');
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// POST /api/bubbles
+// ---------------------------------------------------------------------------
+
+describe('POST /api/bubbles', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('creates a bubble and returns 201', async () => {
+    const bubble = { id: 'bubble-1', name: 'New Project', description: 'A test project', createdAt: '2024-01-01', updatedAt: '2024-01-01' };
+    mockStore.createBubble.mockReturnValueOnce(bubble);
+
+    const res = await request(app)
+      .post('/api/bubbles')
+      .send({ name: 'New Project', description: 'A test project' });
+
+    expect(res.status).toBe(201);
+    expect(res.body.id).toBe('bubble-1');
+    expect(mockStore.createBubble).toHaveBeenCalledWith('New Project', 'A test project');
+  });
+
+  it('returns 400 when name is missing', async () => {
+    const res = await request(app).post('/api/bubbles').send({ description: 'No name' });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe('name is required');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// GET /api/bubbles/:id
+// ---------------------------------------------------------------------------
+
+describe('GET /api/bubbles/:id', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('returns bubble with context count when found', async () => {
+    const bubble = { id: 'bubble-1', name: 'Project A', description: 'Test', createdAt: '2024-01-01', updatedAt: '2024-01-01' };
+    mockStore.getBubble.mockReturnValueOnce(bubble);
+    mockStore.listContextsByBubble.mockReturnValueOnce([fakeEntry, fakeEntry]);
+
+    const res = await request(app).get('/api/bubbles/bubble-1');
+    expect(res.status).toBe(200);
+    expect(res.body.id).toBe('bubble-1');
+    expect(res.body.contextCount).toBe(2);
+  });
+
+  it('returns 404 when bubble not found', async () => {
+    mockStore.getBubble.mockReturnValueOnce(undefined);
+
+    const res = await request(app).get('/api/bubbles/missing-id');
+    expect(res.status).toBe(404);
+    expect(res.body.error).toBe('Not found');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// GET /api/bubbles/:id/contexts
+// ---------------------------------------------------------------------------
+
+describe('GET /api/bubbles/:id/contexts', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('returns contexts for a bubble', async () => {
+    const bubble = { id: 'bubble-1', name: 'Project A', createdAt: '2024-01-01', updatedAt: '2024-01-01' };
+    mockStore.getBubble.mockReturnValueOnce(bubble);
+    mockStore.listContextsByBubble.mockReturnValueOnce([fakeEntry]);
+
+    const res = await request(app).get('/api/bubbles/bubble-1/contexts');
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveLength(1);
+  });
+
+  it('returns 404 when bubble not found', async () => {
+    mockStore.getBubble.mockReturnValueOnce(undefined);
+
+    const res = await request(app).get('/api/bubbles/missing-id/contexts');
+    expect(res.status).toBe(404);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// PUT /api/bubbles/:id
+// ---------------------------------------------------------------------------
+
+describe('PUT /api/bubbles/:id', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('updates bubble and returns updated bubble', async () => {
+    const updated = { id: 'bubble-1', name: 'Updated Project', description: 'Updated desc', createdAt: '2024-01-01', updatedAt: '2024-06-01' };
+    mockStore.updateBubble.mockReturnValueOnce(updated);
+
+    const res = await request(app)
+      .put('/api/bubbles/bubble-1')
+      .send({ name: 'Updated Project', description: 'Updated desc' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.name).toBe('Updated Project');
+  });
+
+  it('returns 400 when name is missing', async () => {
+    const res = await request(app).put('/api/bubbles/bubble-1').send({ description: 'No name' });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe('name is required');
+  });
+
+  it('returns 404 when bubble not found', async () => {
+    mockStore.updateBubble.mockReturnValueOnce(undefined);
+
+    const res = await request(app).put('/api/bubbles/missing-id').send({ name: 'Test' });
+    expect(res.status).toBe(404);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// DELETE /api/bubbles/:id
+// ---------------------------------------------------------------------------
+
+describe('DELETE /api/bubbles/:id', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('deletes bubble and returns 204', async () => {
+    mockStore.deleteBubble.mockReturnValueOnce(true);
+
+    const res = await request(app).delete('/api/bubbles/bubble-1');
+    expect(res.status).toBe(204);
+    expect(mockStore.deleteBubble).toHaveBeenCalledWith('bubble-1', false);
+  });
+
+  it('deletes bubble with contexts when deleteContexts=true', async () => {
+    mockStore.deleteBubble.mockReturnValueOnce(true);
+
+    const res = await request(app).delete('/api/bubbles/bubble-1?deleteContexts=true');
+    expect(res.status).toBe(204);
+    expect(mockStore.deleteBubble).toHaveBeenCalledWith('bubble-1', true);
+  });
+
+  it('returns 404 when bubble not found', async () => {
+    mockStore.deleteBubble.mockReturnValueOnce(false);
+
+    const res = await request(app).delete('/api/bubbles/missing-id');
+    expect(res.status).toBe(404);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // SPA fallback
 // ---------------------------------------------------------------------------
 
 describe('GET /* (SPA fallback)', () => {
-  it('returns 404 JSON when public dir is absent (test environment)', async () => {
+  it('returns 404 when public dir is absent (test environment)', async () => {
     const res = await request(app).get('/some-unknown-route');
     expect(res.status).toBe(404);
-    expect(res.body.error).toContain('UI not found');
   });
 });

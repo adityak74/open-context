@@ -83,6 +83,28 @@ describe('MCP Server', () => {
       expect(text).toContain('Saved context with ID:');
       expect(text).toContain('Tags: none');
     });
+
+    it('should save context with bubbleId', async () => {
+      const bubbleResult = await client.callTool({
+        name: 'create_bubble',
+        arguments: { name: 'Test Bubble' },
+      });
+      const bubbleText = (bubbleResult.content as Array<{ type: string; text: string }>)[0].text;
+      const bubbleIdMatch = bubbleText.match(/ID: ([a-f0-9-]+)/);
+      const bubbleId = bubbleIdMatch![1];
+
+      const result = await client.callTool({
+        name: 'save_context',
+        arguments: {
+          content: 'Context in bubble',
+          bubbleId,
+        },
+      });
+
+      const text = (result.content as Array<{ type: string; text: string }>)[0].text;
+      expect(text).toContain('Saved context with ID:');
+      expect(text).toContain('Bubble:');
+    });
   });
 
   describe('recall_context tool', () => {
@@ -261,6 +283,59 @@ describe('MCP Server', () => {
       const text = (result.content as Array<{ type: string; text: string }>)[0].text;
       expect(text).toContain('No context found');
     });
+
+    it('should update context with bubbleId', async () => {
+      const saveResult = await client.callTool({
+        name: 'save_context',
+        arguments: { content: 'Original' },
+      });
+      const saveText = (saveResult.content as Array<{ type: string; text: string }>)[0].text;
+      const idMatch = saveText.match(/ID: ([a-f0-9-]+)/);
+      const id = idMatch![1];
+
+      const bubbleResult = await client.callTool({
+        name: 'create_bubble',
+        arguments: { name: 'Test Bubble' },
+      });
+      const bubbleText = (bubbleResult.content as Array<{ type: string; text: string }>)[0].text;
+      const bubbleIdMatch = bubbleText.match(/ID: ([a-f0-9-]+)/);
+      const bubbleId = bubbleIdMatch![1];
+
+      const updateResult = await client.callTool({
+        name: 'update_context',
+        arguments: { id, content: 'Updated with bubble', bubbleId },
+      });
+
+      const text = (updateResult.content as Array<{ type: string; text: string }>)[0].text;
+      expect(text).toContain('updated');
+      expect(text).toContain('Bubble:');
+    });
+
+    it('should update context removing bubbleId', async () => {
+      const bubbleResult = await client.callTool({
+        name: 'create_bubble',
+        arguments: { name: 'Test Bubble' },
+      });
+      const bubbleText = (bubbleResult.content as Array<{ type: string; text: string }>)[0].text;
+      const bubbleIdMatch = bubbleText.match(/ID: ([a-f0-9-]+)/);
+      const bubbleId = bubbleIdMatch![1];
+
+      const saveResult = await client.callTool({
+        name: 'save_context',
+        arguments: { content: 'Original', bubbleId },
+      });
+      const saveText = (saveResult.content as Array<{ type: string; text: string }>)[0].text;
+      const idMatch = saveText.match(/ID: ([a-f0-9-]+)/);
+      const id = idMatch![1];
+
+      const updateResult = await client.callTool({
+        name: 'update_context',
+        arguments: { id, content: 'Updated without bubble', bubbleId: null },
+      });
+
+      const text = (updateResult.content as Array<{ type: string; text: string }>)[0].text;
+      expect(text).toContain('updated');
+    });
   });
 
   describe('describe_schema tool', () => {
@@ -362,6 +437,19 @@ describe('MCP Server', () => {
       const text = (result.content as Array<{ type: string; text: string }>)[0].text;
       expect(text).toContain('untyped entries');
     });
+
+    it('returns suggestions when enough untyped entries exist', async () => {
+      // Create 3 untyped entries
+      for (let i = 0; i < 3; i++) {
+        await client.callTool({
+          name: 'save_context',
+          arguments: { content: `Entry ${i} about architecture decisions and system design` },
+        });
+      }
+      const result = await client.callTool({ name: 'suggest_schema', arguments: {} });
+      const text = (result.content as Array<{ type: string; text: string }>)[0].text;
+      expect(text).toBeDefined();
+    });
   });
 
   describe('summarize_context tool', () => {
@@ -371,14 +459,55 @@ describe('MCP Server', () => {
       expect(text).toContain('No entries');
     });
 
-    it('summarizes entries with type filter', async () => {
+    it('summarizes entries with bubbleId filter', async () => {
+      const bubbleResult = await client.callTool({
+        name: 'create_bubble',
+        arguments: { name: 'Test Bubble' },
+      });
+      const bubbleText = (bubbleResult.content as Array<{ type: string; text: string }>)[0].text;
+      const bubbleIdMatch = bubbleText.match(/ID: ([a-f0-9-]+)/);
+      const bubbleId = bubbleIdMatch![1];
+
       await client.callTool({
         name: 'save_context',
-        arguments: { content: 'Use Redis for caching' },
+        arguments: { content: 'Context in bubble', bubbleId },
       });
+
       const result = await client.callTool({
         name: 'summarize_context',
-        arguments: { type: 'decision' },
+        arguments: { bubbleId },
+      });
+      const text = (result.content as Array<{ type: string; text: string }>)[0].text;
+      expect(text).toBeDefined();
+    });
+
+    it('summarizes entries with focus parameter', async () => {
+      await client.callTool({
+        name: 'save_context',
+        arguments: { content: 'Important context' },
+      });
+
+      const result = await client.callTool({
+        name: 'summarize_context',
+        arguments: { focus: 'testing' },
+      });
+      const text = (result.content as Array<{ type: string; text: string }>)[0].text;
+      expect(text).toBeDefined();
+    });
+  });
+
+  describe('get_improvements tool', () => {
+    it('returns no-improvements message on empty log', async () => {
+      const result = await client.callTool({ name: 'get_improvements', arguments: {} });
+      const text = (result.content as Array<{ type: string; text: string }>)[0].text;
+      expect(text).toContain('No self-improvement');
+    });
+
+    it('returns improvements with since parameter', async () => {
+      const since = new Date(Date.now() - 86400000).toISOString();
+      const result = await client.callTool({
+        name: 'get_improvements',
+        arguments: { since },
       });
       const text = (result.content as Array<{ type: string; text: string }>)[0].text;
       expect(text).toBeDefined();
@@ -435,6 +564,21 @@ describe('MCP Server', () => {
     });
   });
 
+  describe('list_bubbles tool', () => {
+    it('returns no bubbles message when empty', async () => {
+      const result = await client.callTool({ name: 'list_bubbles', arguments: {} });
+      const text = (result.content as Array<{ type: string; text: string }>)[0].text;
+      expect(text).toContain('No bubbles');
+    });
+
+    it('lists bubbles with context counts', async () => {
+      await client.callTool({ name: 'create_bubble', arguments: { name: 'Project A' } });
+      const result = await client.callTool({ name: 'list_bubbles', arguments: {} });
+      const text = (result.content as Array<{ type: string; text: string }>)[0].text;
+      expect(text).toContain('Project A');
+    });
+  });
+
   describe('create_bubble tool', () => {
     it('creates a bubble and returns its ID', async () => {
       const result = await client.callTool({
@@ -443,6 +587,16 @@ describe('MCP Server', () => {
       });
       const text = (result.content as Array<{ type: string; text: string }>)[0].text;
       expect(text).toContain('My Project');
+    });
+
+    it('creates a bubble with description', async () => {
+      const result = await client.callTool({
+        name: 'create_bubble',
+        arguments: { name: 'Project B', description: 'A test project' },
+      });
+      const text = (result.content as Array<{ type: string; text: string }>)[0].text;
+      expect(text).toContain('Project B');
+      expect(text).toContain('A test project');
     });
   });
 
@@ -454,6 +608,47 @@ describe('MCP Server', () => {
       });
       const text = (result.content as Array<{ type: string; text: string }>)[0].text;
       expect(text).toContain('No bubble found');
+    });
+
+    it('returns bubble with its contexts', async () => {
+      const createResult = await client.callTool({
+        name: 'create_bubble',
+        arguments: { name: 'Test Bubble', description: 'A test' },
+      });
+      const createText = (createResult.content as Array<{ type: string; text: string }>)[0].text;
+      const idMatch = createText.match(/ID: ([a-f0-9-]+)/);
+      const bubbleId = idMatch![1];
+
+      await client.callTool({
+        name: 'save_context',
+        arguments: { content: 'Context in bubble', bubbleId },
+      });
+
+      const result = await client.callTool({
+        name: 'get_bubble',
+        arguments: { id: bubbleId },
+      });
+      const text = (result.content as Array<{ type: string; text: string }>)[0].text;
+      expect(text).toContain('Test Bubble');
+      expect(text).toContain('Contexts (1)');
+    });
+
+    it('returns bubble with no contexts message', async () => {
+      const createResult = await client.callTool({
+        name: 'create_bubble',
+        arguments: { name: 'Empty Bubble' },
+      });
+      const createText = (createResult.content as Array<{ type: string; text: string }>)[0].text;
+      const idMatch = createText.match(/ID: ([a-f0-9-]+)/);
+      const bubbleId = idMatch![1];
+
+      const result = await client.callTool({
+        name: 'get_bubble',
+        arguments: { id: bubbleId },
+      });
+      const text = (result.content as Array<{ type: string; text: string }>)[0].text;
+      expect(text).toContain('Empty Bubble');
+      expect(text).toContain('No contexts in this bubble');
     });
   });
 

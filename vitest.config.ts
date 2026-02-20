@@ -5,7 +5,7 @@ export default defineConfig({
     globals: true,
     exclude: ['ui/**', 'node_modules/**'],
     coverage: {
-      provider: 'v8',
+      provider: 'istanbul',
       reporter: ['text', 'json-summary', 'json'],
       include: ['src/**/*.ts'],
       exclude: ['src/index.ts', 'src/parsers/types.ts', 'src/mcp/index.ts', 'src/mcp/types.ts'],

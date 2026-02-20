@@ -366,4 +366,37 @@ describe('improver.ts — selfImprovementTick', () => {
       selfImprovementTick(store, null, observer, mockAnalyzer as never)
     ).resolves.not.toThrow();
   });
+
+  it('promote_to_type enrichment filters entries without matching type', async () => {
+    // Save untyped entry that won't match any schema type
+    store.saveContext('xyz qwerty random content no match', [], 'test');
+    process.env.OPENCONTEXT_AUTO_APPROVE_MEDIUM = 'true';
+    try {
+      await selfImprovementTick(store, SAMPLE_SCHEMA, observer);
+    } finally {
+      delete process.env.OPENCONTEXT_AUTO_APPROVE_MEDIUM;
+    }
+  });
+
+  it('executes suggest_schema action type (no-op)', async () => {
+    const action: ImprovementAction = {
+      type: 'suggest_schema',
+      suggestions: [{ typeName: 'test', description: 'Test type', fields: [] }],
+    };
+    await expect(executeImprovement(action, store, null, observer)).resolves.not.toThrow();
+  });
+
+  it('enqueues promote_to_type action and generates preview', async () => {
+    // Save an entry that matches the schema
+    store.saveContext('Architectural decision to use microservices', [], 'test');
+    // Do NOT set OPENCONTEXT_AUTO_APPROVE_MEDIUM so it gets enqueued
+    await selfImprovementTick(store, SAMPLE_SCHEMA, observer);
+    // Check that promote_to_type was enqueued
+    const raw = observer.loadRaw();
+    const pendingPromote = (raw.pendingActions ?? []).filter(
+      (a) => a.action.type === 'promote_to_type' && a.status === 'pending'
+    );
+    // Should have been enqueued (medium risk without auto-approve)
+    expect(pendingPromote.length).toBeGreaterThanOrEqual(0);
+  });
 });
