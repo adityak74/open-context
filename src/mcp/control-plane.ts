@@ -73,12 +73,17 @@ export function createControlPlane(observer: ReturnType<typeof createObserver>) 
     return AUTO_EXECUTE_DEFAULTS[risk] ?? false;
   }
 
-  function isProtected(entryId: string, actionType: string): boolean {
+  /**
+   * Returns true if the given entry or action type is protected from the given action.
+   * Pass null for entryId to check only pattern-level (action-type-wide) protections.
+   * Pass a real entry ID to check both per-entry and pattern-level protections.
+   */
+  function isProtected(entryId: string | null, actionType: string): boolean {
     const raw = observer.loadRaw();
     const protections = raw.protections ?? [];
     return protections.some(
       (p) =>
-        (p.entryId === entryId || (!p.entryId && p.pattern === actionType)) &&
+        ((entryId !== null && p.entryId === entryId) || (!p.entryId && p.pattern === actionType)) &&
         p.protectedFrom.includes(actionType),
     );
   }

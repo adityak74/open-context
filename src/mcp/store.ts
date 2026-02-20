@@ -156,7 +156,7 @@ export function createStore(storePath?: string, observer?: ReturnType<typeof cre
 
   function listContextsByBubble(bubbleId: string): ContextEntry[] {
     const store = load();
-    return store.entries.filter((entry) => entry.bubbleId === bubbleId);
+    return store.entries.filter((entry) => entry.bubbleId === bubbleId && !entry.archived);
   }
 
   function deleteContext(id: string): boolean {

@@ -237,12 +237,17 @@ export default function SchemaEditor() {
   const [saving, setSaving] = useState(false);
   const [savedAt, setSavedAt] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Monotonically increasing counter for type names — avoids collision when types
+  // are deleted and re-added (same fix applied to TypeEditor.addField).
+  const typeCounter = useRef(1);
 
   useEffect(() => {
     fetch('/api/schema')
       .then((r) => r.json())
       .then((data: Schema) => {
-        setSchema(data ?? { version: 1, types: [] });
+        const loaded = data ?? { version: 1, types: [] };
+        setSchema(loaded);
+        typeCounter.current = loaded.types.length + 1;
         setLoading(false);
       })
       .catch(() => {
@@ -270,9 +275,10 @@ export default function SchemaEditor() {
   }, [schema]);
 
   function addType() {
+    const name = `type_${typeCounter.current++}`;
     setSchema((s) => ({
       ...s,
-      types: [...s.types, { name: `type_${s.types.length + 1}`, description: '', fields: {} }],
+      types: [...s.types, { name, description: '', fields: {} }],
     }));
   }
 

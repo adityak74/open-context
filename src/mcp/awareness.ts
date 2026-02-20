@@ -98,8 +98,8 @@ export function buildSelfModel(
   schema: Schema | null,
   observer?: ReturnType<typeof createObserver>,
 ): SelfModel {
-  const allEntries = store.listContexts();
-  const activeEntries = allEntries.filter((e) => !e.archived);
+  // listContexts() already filters out archived entries.
+  const activeEntries = store.listContexts();
   const bubbles = store.listBubbles();
 
   // Identity
@@ -141,8 +141,13 @@ export function buildSelfModel(
     });
   }
 
+  // Load observer data once (single flush + single disk read) to avoid the double
+  // read that occurred when getSummary() and loadRaw() were called separately.
+  let pendingActionsCount = 0;
+  let recentImprovements: SelfModel['recentImprovements'] = [];
   if (observer) {
-    const summary = observer.getSummary();
+    const raw = observer.loadRaw();
+    const summary = raw.summary;
     for (const [query, count] of Object.entries(summary.missedQueryCount)) {
       if (count >= 3) {
         gaps.push({
@@ -152,6 +157,11 @@ export function buildSelfModel(
         });
       }
     }
+    pendingActionsCount = (raw.pendingActions ?? []).filter((a) => a.status === 'pending').length;
+    const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    recentImprovements = (raw.improvements ?? [])
+      .filter((r) => r.timestamp >= yesterday)
+      .map((r) => ({ timestamp: r.timestamp, actions: r.actions }));
   }
 
   if (staleEntries.length > 0) {
@@ -183,18 +193,6 @@ export function buildSelfModel(
       : avgScore >= 0.4
       ? 'needs-attention'
       : 'sparse';
-
-  // Pending actions count and recent improvements from observer
-  let pendingActionsCount = 0;
-  let recentImprovements: SelfModel['recentImprovements'] = [];
-  if (observer) {
-    const raw = observer.loadRaw();
-    pendingActionsCount = (raw.pendingActions ?? []).filter((a) => a.status === 'pending').length;
-    recentImprovements = observer.getRecentImprovements().map((r) => ({
-      timestamp: r.timestamp,
-      actions: r.actions,
-    }));
-  }
 
   return {
     identity: {

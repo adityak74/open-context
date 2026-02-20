@@ -140,8 +140,10 @@ export async function executeImprovement(
       break;
     }
     case 'create_gap_stubs': {
+      // Load summary once before the loop — getSummary() flushes the write buffer
+      // to disk on every call, so calling it inside the loop causes N flush cycles.
+      const summary = observer.getSummary();
       for (const query of action.queries ?? []) {
-        const summary = observer.getSummary();
         const count = summary.missedQueryCount[query] ?? 0;
         store.saveContext(
           `[GAP] Agents have searched for "${query}" ${count} times but no context exists. Please add relevant information.`,
@@ -222,8 +224,9 @@ export async function selfImprovementTick(
   // Phase B: Decide
 
   // 1. Auto-tag untagged entries
+  // listContexts() already filters out archived entries — no need for !e.archived here.
   const untagged = store.listContexts()
-    .filter((e) => !e.archived && e.tags.length === 0);
+    .filter((e) => e.tags.length === 0);
   if (untagged.length >= 3) {
     actions.push({ type: 'auto_tag', entries: untagged.map((e) => ({ id: e.id })) });
   }
@@ -320,8 +323,8 @@ export async function selfImprovementTick(
     if (Date.now() >= deadline) break;
 
     // Skip the entire action type if a pattern-level protection exists.
-    // Pass an empty string as entryId so only the pattern branch of isProtected fires.
-    if (controlPlane.isProtected('', action.type)) continue;
+    // Pass null as entryId so only the pattern branch of isProtected fires.
+    if (controlPlane.isProtected(null, action.type)) continue;
 
     // For entry-based actions, filter out individually protected entries before executing.
     if (action.entries && action.entries.length > 0) {

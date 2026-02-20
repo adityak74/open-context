@@ -14,6 +14,9 @@ const sharedAnalyzer = new ContextAnalyzer();
 export function createMcpServer(storePath?: string) {
   const observer = createObserver();
   const store = createStore(storePath, observer);
+  // Shared control-plane instance — avoids re-creating a closure (and re-reading
+  // awareness.json for protections/pending actions) on every approve/dismiss call.
+  const sharedControlPlane = createControlPlane(observer);
 
   const server = new McpServer({
     name: 'opencontext',
@@ -604,8 +607,7 @@ export function createMcpServer(storePath?: string) {
     'List self-improvement actions awaiting human approval.',
     {},
     async () => {
-      const controlPlane = createControlPlane(observer);
-      const pending = controlPlane.listPending();
+      const pending = sharedControlPlane.listPending();
       if (pending.length === 0) {
         return { content: [{ type: 'text' as const, text: 'No pending actions. The system is up to date.' }] };
       }
@@ -629,7 +631,6 @@ export function createMcpServer(storePath?: string) {
       action_ids: z.array(z.string()).optional().describe('IDs of multiple actions to approve'),
     },
     async (args) => {
-      const controlPlane = createControlPlane(observer);
       const ids = args.action_ids ?? (args.action_id ? [args.action_id] : []);
       if (ids.length === 0) {
         return { content: [{ type: 'text' as const, text: 'No action IDs provided.' }] };
@@ -637,7 +638,7 @@ export function createMcpServer(storePath?: string) {
       const schema = loadSchema();
       const results: string[] = [];
       for (const id of ids) {
-        const { approved, result, action: approvedAction } = controlPlane.approve(id);
+        const { approved, result, action: approvedAction } = sharedControlPlane.approve(id);
         if (approved && approvedAction) {
           try {
             const { executeImprovement } = await import('./improver.js');
@@ -663,13 +664,12 @@ export function createMcpServer(storePath?: string) {
       reason: z.string().optional().describe('Why you are dismissing this action'),
     },
     async (args) => {
-      const controlPlane = createControlPlane(observer);
       const ids = args.action_ids ?? (args.action_id ? [args.action_id] : []);
       if (ids.length === 0) {
         return { content: [{ type: 'text' as const, text: 'No action IDs provided.' }] };
       }
       const results = ids.map((id) => {
-        const dismissed = controlPlane.dismiss(id, args.reason);
+        const dismissed = sharedControlPlane.dismiss(id, args.reason);
         return dismissed ? `✓ ${id}: dismissed` : `- ${id}: not found or already resolved`;
       });
       return { content: [{ type: 'text' as const, text: results.join('\n') }] };
