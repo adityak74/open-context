@@ -104,11 +104,8 @@ export default function Landing() {
       {/* ------------------------------------------------------------------ */}
       <header className="sticky top-0 z-40 border-b border-border bg-background/90 backdrop-blur-sm px-6 md:px-12 py-3.5 flex items-center gap-6">
         <div className="flex items-center gap-2 mr-auto">
-          <img src="/opencontext-logo.png" alt="open-context" className="w-6 h-6 rounded-sm" />
+          <img src="/opencontext-logo.png" alt="open-context" className="w-14 h-14 rounded-sm" />
           <span className="text-sm font-semibold tracking-tight text-foreground">open-context</span>
-          <span className="hidden sm:inline-block text-xs text-muted-foreground border border-border rounded-full px-2 py-0.5 ml-1">
-            open-context.dev
-          </span>
         </div>
 
         <nav className="hidden md:flex items-center gap-6 text-sm text-muted-foreground">
@@ -311,8 +308,8 @@ export default function Landing() {
       {/* ------------------------------------------------------------------ */}
       <section className="px-6 md:px-12 py-24 border-t border-border text-center">
         <div className="max-w-2xl mx-auto flex flex-col items-center gap-6">
-          <div className="w-12 h-12 rounded-xl bg-card border border-border flex items-center justify-center">
-            <img src="/opencontext-logo.png" alt="open-context" className="w-7 h-7 rounded-sm" />
+          <div className="w-56 h-56 rounded-xl bg-card border border-border flex items-center justify-center">
+            <img src="/opencontext-logo.png" alt="open-context" className="w-52 h-52 rounded-sm" />
           </div>
           <h2 className="text-3xl md:text-4xl font-semibold tracking-tight">
             Start with your context today
@@ -338,6 +335,26 @@ export default function Landing() {
               </a>
             </Button>
           </div>
+        </div>
+      </section>
+
+      {/* ------------------------------------------------------------------ */}
+      {/* Aviskaar AI Lab                                                      */}
+      {/* ------------------------------------------------------------------ */}
+      <section className="px-6 md:px-12 py-16 border-t border-border bg-muted/5">
+        <div className="max-w-3xl mx-auto flex flex-col items-center text-center gap-4">
+          <a
+            href="http://aviskaar.com/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="hover:opacity-80 transition-opacity"
+          >
+            <img src="/dark-logo-aviskaar.png" alt="Aviskaar AI Lab" className="h-24 md:h-32" />
+          </a>
+          <p className="text-sm text-muted-foreground">Made with ❤️ by <a href="http://aviskaar.com/" target="_blank" rel="noopener noreferrer" className="hover:text-foreground transition-colors underline underline-offset-2">Aviskaar AI Lab</a></p>
+          <p className="text-sm text-muted-foreground">
+            Building the future of AI context management
+          </p>
         </div>
       </section>
 
