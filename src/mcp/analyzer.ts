@@ -63,20 +63,31 @@ export class ContextAnalyzer {
     }
 
     const contradictions: Contradiction[] = [];
+    // Cap the sample per type and total pairs to avoid O(n²) API calls.
+    // With MAX_SAMPLE=10: at most 45 pairs per type; MAX_TOTAL_PAIRS caps globally.
+    const MAX_SAMPLE_PER_TYPE = 10;
+    const MAX_TOTAL_PAIRS = 50;
+    const CALL_TIMEOUT_MS = 10_000;
+    let totalPairs = 0;
 
     for (const [typeName, typeEntries] of Object.entries(byType)) {
-      const sample = typeEntries.slice(-50);
+      if (totalPairs >= MAX_TOTAL_PAIRS) break;
+      const sample = typeEntries.slice(-MAX_SAMPLE_PER_TYPE);
       for (let i = 0; i < sample.length - 1; i++) {
         for (let j = i + 1; j < sample.length; j++) {
+          if (totalPairs >= MAX_TOTAL_PAIRS) break;
+          totalPairs++;
           const a = sample[i]!;
           const b = sample[j]!;
           try {
             const prompt = `You are analyzing a user's saved context entries for contradictions.\n\nEntries (type: "${typeName}"):\n1. [id: ${a.id}] "${a.content}"\n2. [id: ${b.id}] "${b.content}"\n\nAre these contradictory? Respond ONLY as JSON: { "contradictory": boolean, "explanation": string }`;
-            const response = await this.ollama.generate({
-              model: this.model,
-              prompt,
-              stream: false,
-            });
+            // Race the Ollama call against a per-call timeout to prevent blocking indefinitely.
+            const response = await Promise.race([
+              this.ollama.generate({ model: this.model, prompt, stream: false }),
+              new Promise<never>((_, reject) =>
+                setTimeout(() => reject(new Error('timeout')), CALL_TIMEOUT_MS),
+              ),
+            ]);
             const jsonStr = response.response.match(/\{[\s\S]*\}/)?.[0];
             if (jsonStr) {
               const result = JSON.parse(jsonStr) as { contradictory: boolean; explanation: string };
@@ -89,7 +100,7 @@ export class ContextAnalyzer {
               }
             }
           } catch {
-            // Skip failed comparisons
+            // Skip timed-out or failed comparisons
           }
         }
       }

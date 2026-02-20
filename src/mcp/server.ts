@@ -7,6 +7,10 @@ import { buildSelfModel, formatSelfModel } from './awareness.js';
 import { ContextAnalyzer } from './analyzer.js';
 import { createControlPlane } from './control-plane.js';
 
+// Module-level singleton — avoids re-checking Ollama availability (a network call)
+// on every tool invocation that uses the analyzer.
+const sharedAnalyzer = new ContextAnalyzer();
+
 export function createMcpServer(storePath?: string) {
   const observer = createObserver();
   const store = createStore(storePath, observer);
@@ -437,8 +441,7 @@ export function createMcpServer(storePath?: string) {
       let entries = results;
       if (args.ranked) {
         try {
-          const analyzer = new ContextAnalyzer();
-          const ranked = await analyzer.rankByRelevance(results, args.type);
+          const ranked = await sharedAnalyzer.rankByRelevance(results, args.type);
           entries = ranked.map((r) => r.entry);
         } catch {
           // Fall through — return unranked
@@ -463,9 +466,8 @@ export function createMcpServer(storePath?: string) {
 
       if (args.deep) {
         try {
-          const analyzer = new ContextAnalyzer();
           const allEntries = store.listContexts();
-          const deepContradictions = await analyzer.detectContradictions(allEntries);
+          const deepContradictions = await sharedAnalyzer.detectContradictions(allEntries);
           if (deepContradictions.length > 0) {
             model.contradictions = deepContradictions;
           }
@@ -525,9 +527,8 @@ export function createMcpServer(storePath?: string) {
       type: z.string().optional().describe('Limit analysis to a specific context type'),
     },
     async (args) => {
-      const analyzer = new ContextAnalyzer();
       const entries = args.type ? store.queryByType(args.type) : store.listContexts().filter((e) => !e.archived);
-      const contradictions = await analyzer.detectContradictions(entries);
+      const contradictions = await sharedAnalyzer.detectContradictions(entries);
       if (contradictions.length === 0) {
         return { content: [{ type: 'text' as const, text: 'No contradictions detected.' }] };
       }
@@ -543,12 +544,11 @@ export function createMcpServer(storePath?: string) {
     'Analyze untyped context entries and suggest schema types that would organize them. Uses Ollama if available.',
     {},
     async () => {
-      const analyzer = new ContextAnalyzer();
       const untyped = store.listContexts().filter((e) => !e.contextType && !e.archived);
       if (untyped.length < 3) {
         return { content: [{ type: 'text' as const, text: `Only ${untyped.length} untyped entries — need at least 3 to suggest schema types.` }] };
       }
-      const suggestions = await analyzer.suggestSchemaTypes(untyped);
+      const suggestions = await sharedAnalyzer.suggestSchemaTypes(untyped);
       if (suggestions.length === 0) {
         return { content: [{ type: 'text' as const, text: 'No schema type suggestions at this time. Try adding more untyped entries.' }] };
       }
@@ -569,14 +569,13 @@ export function createMcpServer(storePath?: string) {
       focus: z.string().optional().describe('What the agent is about to work on'),
     },
     async (args) => {
-      const analyzer = new ContextAnalyzer();
       let entries = store.listContexts().filter((e) => !e.archived);
       if (args.type) entries = entries.filter((e) => e.contextType === args.type);
       if (args.bubbleId) entries = entries.filter((e) => e.bubbleId === args.bubbleId);
       if (entries.length === 0) {
         return { content: [{ type: 'text' as const, text: 'No entries to summarize.' }] };
       }
-      const summary = await analyzer.summarizeContext(entries, args.focus);
+      const summary = await sharedAnalyzer.summarizeContext(entries, args.focus);
       return { content: [{ type: 'text' as const, text: summary }] };
     },
   );

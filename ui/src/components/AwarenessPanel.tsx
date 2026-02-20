@@ -319,8 +319,8 @@ export default function AwarenessPanel() {
         <div className="space-y-2">
           <h2 className="text-sm font-medium">Gaps</h2>
           <div className="space-y-2">
-            {gaps.map((gap, i) => (
-              <div key={i} className="flex gap-2 text-xs py-2 border-b border-border last:border-0">
+            {gaps.map((gap) => (
+              <div key={gap.description.slice(0, 40)} className="flex gap-2 text-xs py-2 border-b border-border last:border-0">
                 {gap.severity === 'warning' ? (
                   <AlertTriangle size={13} className="text-yellow-400 shrink-0 mt-0.5" />
                 ) : (
@@ -341,8 +341,8 @@ export default function AwarenessPanel() {
         <div className="space-y-2">
           <h2 className="text-sm font-medium">Contradictions</h2>
           <div className="space-y-2">
-            {contradictions.map((c, i) => (
-              <Card key={i} className="p-3 space-y-1">
+            {contradictions.map((c) => (
+              <Card key={`${c.entryA}-${c.entryB}`} className="p-3 space-y-1">
                 <div className="flex items-center gap-1.5">
                   <AlertTriangle size={12} className="text-yellow-400" />
                   <span className="text-xs">{c.description}</span>
@@ -393,8 +393,8 @@ export default function AwarenessPanel() {
         <div className="space-y-2">
           <h2 className="text-sm font-medium">Recent Improvements</h2>
           <div className="space-y-1">
-            {recentImprovements.map((r, i) => (
-              <div key={i} className="text-xs flex items-start gap-2 py-1.5 border-b border-border last:border-0">
+            {recentImprovements.map((r) => (
+              <div key={r.timestamp} className="text-xs flex items-start gap-2 py-1.5 border-b border-border last:border-0">
                 <span className="text-muted-foreground shrink-0">{new Date(r.timestamp).toLocaleTimeString()}</span>
                 <span>{r.actions.map((a) => `${a.type} (${a.count})`).join(', ')}</span>
               </div>

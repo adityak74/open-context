@@ -71,6 +71,12 @@ export function createObserver(observerPath?: string) {
   let pendingSummaryDeltas: Array<(s: ObservationLog['summary']) => void> = [];
   let flushTimer: ReturnType<typeof setTimeout> | null = null;
 
+  // Lightweight in-memory write counter — incremented in log() without flushing.
+  // Callers that only need a write count (e.g. periodic cache refresh in store.ts)
+  // should use getWriteCount() instead of getSummary().totalWrites to avoid
+  // triggering a disk flush on every write.
+  let inMemoryWriteCount = 0;
+
   function loadLog(): ObservationLog {
     if (!existsSync(filePath)) {
       return {
@@ -147,6 +153,10 @@ export function createObserver(observerPath?: string) {
       timestamp: new Date().toISOString(),
       ...event,
     };
+
+    if (event.action === 'write') {
+      inMemoryWriteCount++;
+    }
 
     pendingEvents.push(fullEvent);
 
@@ -260,10 +270,20 @@ export function createObserver(observerPath?: string) {
     persistLog(log);
   }
 
+  /**
+   * Returns the number of 'write' events logged since this observer was created,
+   * without flushing the buffer to disk. Use this instead of getSummary().totalWrites
+   * when you only need a relative count and do not want to trigger a disk flush.
+   */
+  function getWriteCount(): number {
+    return inMemoryWriteCount;
+  }
+
   return {
     log,
     logSelfImprovement,
     getSummary,
+    getWriteCount,
     getMissedQueries,
     getTypePopularity,
     rotateIfNeeded,

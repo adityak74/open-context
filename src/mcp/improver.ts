@@ -316,8 +316,22 @@ export async function selfImprovementTick(
   // Phase C: Route through control plane
   const executedActions: Array<{ type: string; count: number }> = [];
 
-  for (const action of actions) {
+  for (let action of actions) {
     if (Date.now() >= deadline) break;
+
+    // Skip the entire action type if a pattern-level protection exists.
+    // Pass an empty string as entryId so only the pattern branch of isProtected fires.
+    if (controlPlane.isProtected('', action.type)) continue;
+
+    // For entry-based actions, filter out individually protected entries before executing.
+    if (action.entries && action.entries.length > 0) {
+      const unprotectedEntries = action.entries.filter(
+        (e) => !controlPlane.isProtected(e.id as string, action.type),
+      );
+      if (unprotectedEntries.length === 0) continue;
+      action = { ...action, entries: unprotectedEntries };
+    }
+
     if (controlPlane.shouldAutoExecute(action)) {
       try {
         await executeImprovement(action, store, schema, observer);
@@ -343,14 +357,14 @@ export async function selfImprovementTick(
     }
   }
 
-  // Phase D: Record and refresh cache
+  // Phase D: Record and refresh cache — only when something was actually executed
+  // to avoid a redundant read+write of awareness.json on idle ticks.
   if (executedActions.length > 0) {
     observer.logSelfImprovement({
       timestamp: new Date().toISOString(),
       actions: executedActions,
       autoExecuted: true,
     });
+    refreshCache(store, schema, observer);
   }
-
-  refreshCache(store, schema, observer);
 }

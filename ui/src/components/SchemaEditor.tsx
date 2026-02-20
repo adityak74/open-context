@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Plus, Trash2, Save, ChevronDown, ChevronUp } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -146,11 +146,16 @@ function TypeEditor({
   onDelete: () => void;
 }) {
   const [expanded, setExpanded] = useState(true);
+  // Monotonically increasing counter for field keys — avoids collision when
+  // fields are deleted and re-added (e.g. add field_1, add field_2, delete field_1,
+  // add again → field_3, not field_2 which would overwrite the existing field_2).
+  const fieldCounter = useRef(Object.keys(type.fields).length + 1);
 
   function addField() {
+    const key = `field_${fieldCounter.current++}`;
     onChange({
       ...type,
-      fields: { ...type.fields, [`field_${Object.keys(type.fields).length + 1}`]: { ...EMPTY_FIELD } },
+      fields: { ...type.fields, [key]: { ...EMPTY_FIELD } },
     });
   }
 

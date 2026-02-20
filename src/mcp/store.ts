@@ -70,9 +70,11 @@ export function createStore(storePath?: string, observer?: ReturnType<typeof cre
     store.entries.push(entry);
     save(store);
     observer?.log({ action: 'write', tool: 'save_context', entryIds: [entry.id] });
-    // Write-triggered cache refresh every 10 writes
+    // Write-triggered cache refresh every 10 writes.
+    // Uses getWriteCount() (no disk flush) instead of getSummary().totalWrites
+    // to avoid negating the observer's write buffer.
     if (observer) {
-      const total = observer.getSummary().totalWrites;
+      const total = observer.getWriteCount();
       if (total % 10 === 0) {
         import('./awareness.js').then(({ refreshCache }) => {
           import('./schema.js').then(({ loadSchema }) => {
@@ -142,11 +144,12 @@ export function createStore(storePath?: string, observer?: ReturnType<typeof cre
 
   function listContexts(tag?: string): ContextEntry[] {
     const store = load();
+    const active = store.entries.filter((entry) => !entry.archived);
     if (!tag) {
-      return store.entries;
+      return active;
     }
     const lowerTag = tag.toLowerCase();
-    return store.entries.filter((entry) =>
+    return active.filter((entry) =>
       entry.tags.some((t) => t.toLowerCase() === lowerTag),
     );
   }
@@ -172,6 +175,7 @@ export function createStore(storePath?: string, observer?: ReturnType<typeof cre
     const lowerQuery = query.toLowerCase();
     const terms = lowerQuery.split(/\s+/).filter(Boolean);
     return store.entries.filter((entry) => {
+      if (entry.archived) return false;
       const text = `${entry.content} ${entry.tags.join(' ')} ${entry.source}`.toLowerCase();
       return terms.every((term) => text.includes(term));
     });
